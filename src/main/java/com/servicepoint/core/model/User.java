@@ -20,14 +20,199 @@ import java.util.List;
 @Table(name = "users")
 public class User {
 
-    @Id
+
+    public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
+	}
+
+	public String getEmail() {
+		return email;
+	}
+
+	public void setEmail(String email) {
+		this.email = email;
+	}
+
+	public String getPasswordHash() {
+		return passwordHash;
+	}
+
+	public void setPasswordHash(String passwordHash) {
+		this.passwordHash = passwordHash;
+	}
+
+	public String getProfilePicture() {
+		return profilePicture;
+	}
+
+	public void setProfilePicture(String profilePicture) {
+		this.profilePicture = profilePicture;
+	}
+
+	public String getLocation() {
+		return location;
+	}
+
+	public void setLocation(String location) {
+		this.location = location;
+	}
+
+	public Double getLatitude() {
+		return latitude;
+	}
+
+	public void setLatitude(Double latitude) {
+		this.latitude = latitude;
+	}
+
+	public Double getLongitude() {
+		return longitude;
+	}
+
+	public void setLongitude(Double longitude) {
+		this.longitude = longitude;
+	}
+
+	public String getPhoneNumber() {
+		return phoneNumber;
+	}
+
+	public void setPhoneNumber(String phoneNumber) {
+		this.phoneNumber = phoneNumber;
+	}
+
+	public Double getRating() {
+		return rating;
+	}
+
+	public void setRating(Double rating) {
+		this.rating = rating;
+	}
+
+	public Integer getReviewCount() {
+		return reviewCount;
+	}
+
+	public void setReviewCount(Integer reviewCount) {
+		this.reviewCount = reviewCount;
+	}
+
+	public Timestamp getLastLogin() {
+		return lastLogin;
+	}
+
+	public void setLastLogin(Timestamp lastLogin) {
+		this.lastLogin = lastLogin;
+	}
+
+	public Timestamp getCreatedAt() {
+		return createdAt;
+	}
+
+	public void setCreatedAt(Timestamp createdAt) {
+		this.createdAt = createdAt;
+	}
+
+	public Timestamp getUpdatedAt() {
+		return updatedAt;
+	}
+
+	public void setUpdatedAt(Timestamp updatedAt) {
+		this.updatedAt = updatedAt;
+	}
+
+	public List<Session> getSessions() {
+		return sessions;
+	}
+
+	public void setSessions(List<Session> sessions) {
+		this.sessions = sessions;
+	}
+
+	public List<Address> getAddresses() {
+		return addresses;
+	}
+
+	public void setAddresses(List<Address> addresses) {
+		this.addresses = addresses;
+	}
+
+	public PaymentPreference getPaymentPreferences() {
+		return paymentPreferences;
+	}
+
+	public void setPaymentPreferences(PaymentPreference paymentPreferences) {
+		this.paymentPreferences = paymentPreferences;
+	}
+
+	public CommunicationPreferences getCommunicationPreferences() {
+		return communicationPreferences;
+	}
+
+	public void setCommunicationPreferences(CommunicationPreferences communicationPreferences) {
+		this.communicationPreferences = communicationPreferences;
+	}
+
+	public List<ServiceCatalog> getServices() {
+		return services;
+	}
+
+	public void setServices(List<ServiceCatalog> services) {
+		this.services = services;
+	}
+
+	public List<Booking> getCustomerBookings() {
+		return customerBookings;
+	}
+
+	public void setCustomerBookings(List<Booking> customerBookings) {
+		this.customerBookings = customerBookings;
+	}
+
+	public List<Booking> getProviderBookings() {
+		return providerBookings;
+	}
+
+	public void setProviderBookings(List<Booking> providerBookings) {
+		this.providerBookings = providerBookings;
+	}
+
+	public List<Feedback> getCustomerFeedbacks() {
+		return customerFeedbacks;
+	}
+
+	public void setCustomerFeedbacks(List<Feedback> customerFeedbacks) {
+		this.customerFeedbacks = customerFeedbacks;
+	}
+
+	public List<Feedback> getProviderFeedbacks() {
+		return providerFeedbacks;
+	}
+
+	public void setProviderFeedbacks(List<Feedback> providerFeedbacks) {
+		this.providerFeedbacks = providerFeedbacks;
+	}
+
+	public Integer getUserId() {
+		return userId;
+	}
+
+	public void setRole(String role) {
+		this.role = role;
+	}
+
+	@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer userId;
 
     @Column(unique = true, nullable = false)
     private String username;
 
-    @Column(length = 255)
+	@Column(unique = true, nullable = false)
     private String email;
 
     @Column(nullable = false)

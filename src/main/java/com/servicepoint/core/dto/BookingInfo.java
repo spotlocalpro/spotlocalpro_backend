@@ -10,6 +10,7 @@ public record BookingInfo(
         String notes,
         Double priceAtBooking,
         String pricingTypeAtBooking,
+        Double totalPrice,
         CustomerInfo customer,
         ProviderInfo provider,
         ServiceInfo service

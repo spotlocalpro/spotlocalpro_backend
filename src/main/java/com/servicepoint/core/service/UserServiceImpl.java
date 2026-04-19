@@ -38,7 +38,6 @@ public class UserServiceImpl implements UserService, UserDetailsService {
 
     @Autowired
     private OtpService otpService;
-
     /**
      * Step 1: Initiate registration by sending OTP
      */
@@ -49,10 +48,9 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         }
 
         // Check rate limiting
-        if (!otpService.canResendOtp(email, "registration")) {
-            throw new RuntimeException("Please wait before requesting a new OTP");
+        if ("TIME_LEFT".equalsIgnoreCase(otpService.canResendOtp(email, "registration"))) {
+            throw new RuntimeException("Please wait before requesting new OTP");
         }
-
         // Generate and send OTP
         otpService.generateAndSendOtp(email, "registration");
 
@@ -102,7 +100,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         // Check rate limiting
-        if (!otpService.canResendOtp(user.getEmail(), "login")) {
+        if ("TIME_LEFT".equalsIgnoreCase(otpService.canResendOtp(user.getEmail(), "login"))) {
             throw new RuntimeException("Please wait before requesting a new OTP");
         }
 
@@ -130,15 +128,35 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         // Verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             System.out.println("DEBUG >> Password verification failed");
+
             throw new RuntimeException("Invalid credentials");
         }
 
-        // Verify OTP
-        boolean otpValid = otpService.verifyOtp(user.getEmail(), request.getOtpCode(), "login");
-        if (!otpValid) {
-            System.out.println("DEBUG >> OTP verification failed for code: " + request.getOtpCode());
-            throw new RuntimeException("Invalid or expired OTP code");
+        String selectedRole = request.getRole();
+        String actualRole = user.getRole();
+
+        if (selectedRole != null && !selectedRole.isBlank()) {
+            boolean isAdmin = "admin".equalsIgnoreCase(actualRole);
+
+            if (!isAdmin && !selectedRole.equalsIgnoreCase(actualRole)) {
+                System.out.println("DEBUG >> Role mismatch. Selected: " + selectedRole + ", Actual: " + actualRole);
+
+                if ("customer".equalsIgnoreCase(selectedRole) && "provider".equalsIgnoreCase(actualRole)) {
+                    throw new RuntimeException("This account is registered as a Service Provider. Please switch to the Provider role to log in.");
+                }
+                if ("provider".equalsIgnoreCase(selectedRole) && "customer".equalsIgnoreCase(actualRole)) {
+                    throw new RuntimeException("This account is registered as a Customer. Please switch to the Customer role to log in.");
+                }
+                throw new RuntimeException("Invalid credentials");
+            }
         }
+
+        // Verify OTP
+//        boolean otpValid = otpService.verifyOtp(user.getEmail(), request.getOtpCode(), "login");
+//        if (!otpValid) {
+//            System.out.println("DEBUG >> OTP verification failed for code: " + request.getOtpCode());
+//            throw new RuntimeException("Invalid or expired OTP code");
+//        }
 
         // Update last login
         user.setLastLogin(Timestamp.valueOf(LocalDateTime.now()));
@@ -213,9 +231,23 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     }
 
     @Override
+    public boolean existsByUsername(String username) {
+        return userRepository.existsByUsername(username);
+    }
+
+
+
+
+    @Override
     public Optional<User> findUserByEmail(String email) {
         return userRepository.findByEmail(email);
     }
+
+    @Override
+    public boolean existsByEmail(String email) {
+        return userRepository.existsByEmail(email);
+    }
+
 
     @Override
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
@@ -304,5 +336,20 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         userDTO.setCreatedAt(user.getCreatedAt().toString());
         userDTO.setUpdatedAt(user.getUpdatedAt().toString());
         return userDTO;
+    }
+
+    @Override
+    public void changePassword(String username, String currentPassword, String newPassword) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // ✅ Verify current password
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+
+        // ✅ Save new hashed password
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
     }
 }

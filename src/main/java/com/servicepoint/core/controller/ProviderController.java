@@ -11,7 +11,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/providers")
+@CrossOrigin("*")
 public class ProviderController {
+
 
     @Autowired
     private ProviderService providerService;
@@ -59,7 +61,7 @@ public class ProviderController {
             @RequestParam(defaultValue = "0") Integer offset) {
 
         LocationSearchRequest request = new LocationSearchRequest(
-                category, latitude, longitude, radius, limit, offset
+                category, latitude, longitude, radius, limit, offset,null
         );
 
         List<ProviderWithUser> providers = providerService.getProvidersNearbyByService(request);

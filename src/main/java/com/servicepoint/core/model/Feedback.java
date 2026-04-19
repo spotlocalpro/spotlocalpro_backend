@@ -5,14 +5,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
 import java.sql.Timestamp;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter
-
 @Entity
 @Table(name = "feedback")
 public class Feedback {
@@ -37,6 +35,8 @@ public class Feedback {
     private String comments;
 
     @Column(nullable = false)
-    private Timestamp submissionDate;
+    private Integer rating; // ✅ 1-5 stars
 
+    @Column(nullable = false)
+    private Timestamp submissionDate;
 }

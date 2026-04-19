@@ -22,4 +22,5 @@ public class UpdateBookingRequest {
     private String notes;
     private Double priceAtBooking;
     private String pricingTypeAtBooking;
+    private Double totalPrice;
 }

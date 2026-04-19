@@ -8,6 +8,7 @@ import com.servicepoint.core.repository.ServiceCatalogRepository;
 import com.servicepoint.core.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,70 +19,139 @@ public class ProviderService {
     private UserRepository userRepository;
 
     @Autowired
-    ServiceCatalogService catalogService;
+    private ServiceCatalogService catalogService;
 
     @Autowired
     private ServiceCatalogRepository serviceRepository;
 
-    public List<ProviderWithUser> getProviders() {
-        List<User> providers = userRepository.findAll().stream()
-                .filter(user -> "provider".equals(user.getRole()))
-                .toList();
+    // ✅ Haversine formula — calculates distance in miles between two lat/lng points
+    private double haversineDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int EARTH_RADIUS_MILES = 3959;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS_MILES * c;
+    }
 
-        return providers.stream().map(this::mapToProviderWithUser)
+    public List<ProviderWithUser> getProviders() {
+        return userRepository.findAll().stream()
+                .filter(user -> "provider".equals(user.getRole()))
+                .map(this::mapToProviderWithUser)
                 .collect(Collectors.toList());
     }
 
+    // ✅ Main nearby search using Haversine — no PostGIS needed
     public List<ProviderWithUser> getProvidersNearbyByService(LocationSearchRequest request) {
-        // If no coordinates provided, fall back to general search
         if (request.getLatitude() == null || request.getLongitude() == null) {
             return getProvidersByServiceWithoutLocation(request);
         }
 
-        List<Object[]> results = userRepository.findProvidersNearbyByServiceWithFilters(
-                request.getCategory(),
-                request.getLatitude(),
-                request.getLongitude(),
-                request.getRadius(),
-                request.getLimit(),
-                request.getOffset()
-        );
+        List<User> allProviders = userRepository.findAll().stream()
+                .filter(user -> "provider".equals(user.getRole()))
+                .collect(Collectors.toList());
 
-        return results.stream()
-                .map(this::mapResultToProviderWithUser)
+        return allProviders.stream()
+                .map(provider -> {
+                    Double distance = null;
+                    if (provider.getLatitude() != null && provider.getLongitude() != null) {
+                        distance = haversineDistance(
+                                request.getLatitude(), request.getLongitude(),
+                                provider.getLatitude(), provider.getLongitude()
+                        );
+                    }
+                    return new Object[]{provider, distance};
+                })
+                // ✅ Filter by category — provider must have at least one matching service
+                .filter(pair -> {
+                    User provider = (User) pair[0];
+                    List<ServiceCatalog> services = serviceRepository
+                            .findByProviderUserId(provider.getUserId());
+                    return services.stream().anyMatch(s ->
+                            request.getCategory() == null ||
+                                    s.getCategory().equalsIgnoreCase(request.getCategory())
+                    );
+                })
+                // ✅ Filter by level if tutoring
+                .filter(pair -> {
+                    if (request.getLevel() == null || request.getLevel().isEmpty()) return true;
+                    User provider = (User) pair[0];
+                    List<ServiceCatalog> services = serviceRepository
+                            .findByProviderUserId(provider.getUserId());
+                    return services.stream().anyMatch(s ->
+                            request.getLevel().equalsIgnoreCase(s.getLevel())
+                    );
+                })
+                // ✅ Sort by distance — providers with no coords go to end
+                .sorted((a, b) -> {
+                    Double distA = (Double) a[1];
+                    Double distB = (Double) b[1];
+                    if (distA == null && distB == null) return 0;
+                    if (distA == null) return 1;
+                    if (distB == null) return -1;
+                    return Double.compare(distA, distB);
+                })
+                .skip(request.getOffset())
+                .limit(request.getLimit())
+                .map(pair -> mapToProviderWithUserAndDistance(
+                        (User) pair[0], (Double) pair[1], request.getCategory()
+                ))
                 .collect(Collectors.toList());
     }
 
     private List<ProviderWithUser> getProvidersByServiceWithoutLocation(LocationSearchRequest request) {
-        List<Object[]> results = userRepository.findProvidersByServiceWithoutDistance(
-                request.getCategory(),
-                request.getLimit(),
-                request.getOffset()
-        );
-
-        return results.stream()
-                .map(this::mapResultToProviderWithUser)
+        return userRepository.findAll().stream()
+                .filter(user -> "provider".equals(user.getRole()))
+                .filter(provider -> {
+                    List<ServiceCatalog> services = serviceRepository
+                            .findByProviderUserId(provider.getUserId());
+                    return services.stream().anyMatch(s ->
+                            request.getCategory() == null ||
+                                    s.getCategory().equalsIgnoreCase(request.getCategory())
+                    );
+                })
+                .skip(request.getOffset())
+                .limit(request.getLimit())
+                .map(this::mapToProviderWithUser)
                 .collect(Collectors.toList());
     }
 
     public LocationSearchResponse searchProvidersNearbyByService(LocationSearchRequest request) {
+        long startTime = System.currentTimeMillis();
+
         List<ProviderWithUser> providers = getProvidersNearbyByService(request);
 
-        Long totalCount = userRepository.countProvidersNearbyByServiceWithFilters(
-                request.getCategory(),
+        long totalCount = userRepository.findAll().stream()
+                .filter(user -> "provider".equals(user.getRole()))
+                .filter(provider -> {
+                    List<ServiceCatalog> services = serviceRepository
+                            .findByProviderUserId(provider.getUserId());
+                    return services.stream().anyMatch(s ->
+                            request.getCategory() == null ||
+                                    s.getCategory().equalsIgnoreCase(request.getCategory())
+                    );
+                })
+                .count();
+
+        long executionTime = System.currentTimeMillis() - startTime;
+
+        LocationSearchResponse.SearchMetadata metadata = new LocationSearchResponse.SearchMetadata(
                 request.getLatitude(),
                 request.getLongitude(),
-                request.getRadius()
+                executionTime + "ms",
+                providers.size() == request.getLimit()
         );
 
         return new LocationSearchResponse(
                 providers,
-                totalCount.intValue(),
+                (int) totalCount,
                 request.getLimit(),
                 request.getOffset(),
                 request.getRadius(),
                 request.getCategory(),
-                null
+                metadata
         );
     }
 
@@ -90,7 +160,7 @@ public class ProviderService {
     }
 
     public List<ServiceProvider> getServicesByProvider(Integer providerId) {
-        var provider = userRepository.findById(providerId)
+        User provider = userRepository.findById(providerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Provider not found"));
 
         return catalogService.findServicesByProviderId(provider.getUserId())
@@ -115,15 +185,27 @@ public class ProviderService {
                 .collect(Collectors.toList());
     }
 
-    private ProviderWithUser mapResultToProviderWithUser(Object[] result) {
-        User provider = extractUserFromResult(result);
-        Double distanceMiles = (Double) result[16]; // distance_miles is at index 16
+    // ✅ Now maps ALL services for the provider — filtered by category if provided
+    private ProviderWithUser mapToProviderWithUserAndDistance(
+            User provider, Double distanceMiles, String category) {
 
-        // Get the service for this provider
-        ServiceCatalog providerService = serviceRepository.findByProviderUserId(provider.getUserId())
+        // ✅ Collect ALL matching services instead of just the first one
+        List<ServiceInfo> serviceInfoList = serviceRepository
+                .findByProviderUserId(provider.getUserId())
                 .stream()
-                .findFirst()
-                .orElse(null);
+                .filter(s -> category == null || s.getCategory().equalsIgnoreCase(category))
+                .map(s -> new ServiceInfo(
+                        s.getServiceId(),
+                        s.getName(),
+                        s.getDescription(),
+                        s.getCategory(),
+                        s.getAvailability(),
+                        s.getPrice(),
+                        s.getPricingType(),
+                        s.getLevel(),
+                        s.getSubject()
+                ))
+                .collect(Collectors.toList());
 
         UserResponse userDTO = new UserResponse(
                 provider.getUserId(),
@@ -143,86 +225,10 @@ public class ProviderService {
                 provider.getUpdatedAt().toString()
         );
 
-        ServiceInfo serviceInfoDTO = null;
-        if (providerService != null) {
-            serviceInfoDTO = new ServiceInfo(
-                    providerService.getServiceId(),
-                    providerService.getName(),
-                    providerService.getDescription(),
-                    providerService.getCategory(),
-                    providerService.getAvailability(),
-                    providerService.getPrice(),
-                    providerService.getPricingType(),
-                    providerService.getLevel(),
-                    providerService.getSubject()
-            );
-        }
-
-        return new ProviderWithUser(provider.getUserId(), userDTO, serviceInfoDTO);
-    }
-
-    private User extractUserFromResult(Object[] result) {
-        User user = new User();
-
-        // Proper casting based on SQL result order
-        user.setUserId(((Number) result[0]).intValue()); // user_id
-        user.setEmail((String) result[1]); // email
-        user.setPasswordHash((String) result[2]); // password_hash
-        user.setUsername((String) result[3]); // username
-        user.setPhoneNumber((String) result[4]); // phone_number
-        user.setRole((String) result[5]); // role
-        user.setLocation((String) result[6]); // location
-        user.setLatitude(result[7] != null ? ((Number) result[7]).doubleValue() : null); // latitude
-        user.setLongitude(result[8] != null ? ((Number) result[8]).doubleValue() : null); // longitude
-        user.setRating(result[9] != null ? ((Number) result[9]).doubleValue() : null); // rating
-        user.setReviewCount(result[10] != null ? ((Number) result[10]).intValue() : null); // review_count
-        user.setLastLogin((java.sql.Timestamp) result[11]); // last_login
-        user.setCreatedAt((java.sql.Timestamp) result[12]); // created_at
-        user.setUpdatedAt((java.sql.Timestamp) result[13]); // updated_at
-        user.setProfilePicture((String) result[14]); // profile_picture
-
-        return user;
+        return new ProviderWithUser(provider.getUserId(), userDTO, serviceInfoList);
     }
 
     private ProviderWithUser mapToProviderWithUser(User provider) {
-        ServiceCatalog providerService = serviceRepository.findByProviderUserId(provider.getUserId())
-                .stream()
-                .findFirst()
-                .orElse(null);
-
-        UserResponse userDTO = new UserResponse(
-                provider.getUserId(),
-                provider.getUsername(),
-                provider.getEmail(),
-                provider.getRole(),
-                provider.getProfilePicture(),
-                provider.getLocation(),
-                provider.getLatitude(),
-                provider.getLongitude(),
-                provider.getPhoneNumber(),
-                provider.getRating(),
-                provider.getReviewCount(),
-                null, // distance will be null for non-distance queries
-                provider.getLastLogin() != null ? provider.getLastLogin().toString() : null,
-                provider.getCreatedAt().toString(),
-                provider.getUpdatedAt().toString()
-        );
-
-        ServiceInfo serviceInfoDTO = null;
-        if (providerService != null) {
-            serviceInfoDTO = new ServiceInfo(
-                    providerService.getServiceId(),
-                    providerService.getName(),
-                    providerService.getDescription(),
-                    providerService.getCategory(),
-                    providerService.getAvailability(),
-                    providerService.getPrice(),
-                    providerService.getPricingType(),
-                    providerService.getLevel(),
-                    providerService.getSubject()
-            );
-        }
-
-        return new ProviderWithUser(provider.getUserId(), userDTO, serviceInfoDTO);
+        return mapToProviderWithUserAndDistance(provider, null, null);
     }
 }

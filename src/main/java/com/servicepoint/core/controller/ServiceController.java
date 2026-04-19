@@ -28,6 +28,7 @@ public class ServiceController {
     private ServiceCatalogService serviceCatalogService;
     @Autowired
     private UserRepository userRepository;
+
     @GetMapping
     public List<ServiceCatalogResponse> getAllServices() {
         return serviceCatalogService.findAllServices();
@@ -42,7 +43,7 @@ public class ServiceController {
     @PostMapping
     public ResponseEntity<ServiceCatalogResponse> createService(@RequestBody NewServiceRequest service) {
 
-        log.debug(service.getName());
+      //  log.debug(service.getName());
         var createdService =  serviceCatalogService.saveService(service);
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
@@ -69,9 +70,9 @@ public class ServiceController {
     }
 
 
-    @GetMapping("/services")
+    @GetMapping("/provider/{providerId}")
     public ResponseEntity<Map<String, Object>> getServicesByProviderId(
-            @RequestParam("provider_id") Integer providerId) {
+            @PathVariable Integer providerId) {
         List<ServiceCatalog> services = serviceCatalogService.findServicesByProviderId(providerId);
 
         List<Map<String, Object>> serviceList = services.stream()

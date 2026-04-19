@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -23,51 +24,65 @@ public class TokenController {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private UserDetailsService userDetailsService; // ✅ add this
+
     @PostMapping("/renew_access")
     public ResponseEntity<?> renewAccessToken(@RequestBody RenewAccessTokenRequest request) {
         try {
-            // Validate refresh token
+            System.out.println("=== RENEW ACCESS TOKEN ===");
+            System.out.println("Refresh token received: " + (request.getRefreshToken() != null ? "YES" : "NO"));
+
             if (request.getRefreshToken() == null || request.getRefreshToken().trim().isEmpty()) {
+                System.out.println("❌ Refresh token is null or empty");
                 return ResponseEntity.badRequest()
                         .body(new ErrorResponse("Refresh token is required"));
             }
 
-            // Extract username/email from refresh token
-            String email;
+            String userName;
             try {
-                email = jwtUtil.extractUsername(request.getRefreshToken());
+                userName =jwtUtil.extractUsername(request.getRefreshToken());
+                System.out.println("✅ Email extracted: " + userName);
             } catch (Exception e) {
+                System.out.println("❌ Failed to extract username: " + e.getMessage());
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ErrorResponse("Invalid refresh token"));
             }
 
-            // Check if refresh token is expired
-            if (jwtUtil.extractExpiration(request.getRefreshToken()).before(new Date())) {
+            boolean isExpired = jwtUtil.extractExpiration(request.getRefreshToken()).before(new Date());
+            System.out.println("Token expired: " + isExpired);
+
+            if (isExpired) {
+                System.out.println("❌ Refresh token is expired");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ErrorResponse("Refresh token has expired"));
             }
 
-            // Find user by email
-            Optional<User> userOptional = userService.findUserByEmail(email);
+            Optional<User> userOptional = userService.findUserByUsername(userName);
+            System.out.println("User found: " + userOptional.isPresent());
+
             if (userOptional.isEmpty()) {
+                System.out.println("❌ User not found for email: " + userName);
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ErrorResponse("User not found"));
             }
 
-            User user = userOptional.get();
+            boolean isValid = jwtUtil.validateToken(request.getRefreshToken(), userName);
+            System.out.println("Token valid: " + isValid);
 
-            // Validate refresh token against user
-            Optional<User> userDetails = userService.findUserByEmail(email);
-            if (!jwtUtil.validateToken(request.getRefreshToken(), String.valueOf(userDetails))) {
+            if (!isValid) {
+                System.out.println("❌ Token validation failed");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ErrorResponse("Invalid refresh token"));
             }
 
-            // Generate new access token
-            String newAccessToken = jwtUtil.generateToken(email);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(userName);
+            System.out.println("✅ UserDetails loaded: " + userDetails.getUsername());
 
-            // Calculate expiration time (15 minutes from now)
-            long expirationTimeMs = 15 * 60 * 1000; // 15 minutes in milliseconds
+            String newAccessToken = jwtUtil.generateToken(userDetails);
+            System.out.println("✅ New access token generated");
+
+            long expirationTimeMs = 15 * 60 * 1000;
             Date expirationDate = new Date(System.currentTimeMillis() + expirationTimeMs);
 
             RenewAccessTokenResponse response = new RenewAccessTokenResponse(
@@ -76,11 +91,16 @@ public class TokenController {
                     expirationTimeMs
             );
 
+            System.out.println("✅ Returning new access token");
+            System.out.println("==========================");
+
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            System.out.println("❌ Exception: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("An error occurred while renewing access token"));
+                    .body(new ErrorResponse("An error occurred: " + e.getMessage()));
         }
     }
 
@@ -94,19 +114,16 @@ public class TokenController {
 
             String email = jwtUtil.extractUsername(request.getToken());
             Date expiration = jwtUtil.extractExpiration(request.getToken());
-
-            // Check if token is expired
             boolean isExpired = expiration.before(new Date());
 
-            // Find user
             Optional<User> userOptional = userService.findUserByEmail(email);
             if (userOptional.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ErrorResponse("User not found"));
             }
 
-            Optional<User> userDetails = userService.findUserByEmail(email);
-            boolean isValid = jwtUtil.validateToken(request.getToken(), String.valueOf(userDetails));
+            // ✅ Validate against email string directly
+            boolean isValid = jwtUtil.validateToken(request.getToken(), email);
 
             ValidateTokenResponse response = new ValidateTokenResponse(
                     isValid && !isExpired,
@@ -126,20 +143,11 @@ public class TokenController {
     @PostMapping("/revoke")
     public ResponseEntity<?> revokeToken(@RequestBody RevokeTokenRequest request) {
         try {
-            // For JWT tokens, we can't actually revoke them server-side without maintaining a blacklist
-            // This is a placeholder for future implementation with token blacklisting
-
             if (request.getToken() == null || request.getToken().trim().isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(new ErrorResponse("Token is required"));
             }
-
-            // In a real implementation, you would:
-            // 1. Add token to a blacklist/redis cache
-            // 2. Check this blacklist in your JWT filter
-
             return ResponseEntity.ok(new RevokeTokenResponse("Token revoked successfully"));
-
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("An error occurred while revoking token"));

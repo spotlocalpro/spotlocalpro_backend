@@ -42,6 +42,45 @@ public class EmailService {
         sendEmail(to, subject, body);
     }
 
+
+    /**
+     * Send password reset email with a reset link.
+     */
+    public void sendPasswordResetEmail(String toEmail, String username, String resetLink) throws MessagingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+        helper.setTo(toEmail);
+        helper.setSubject("Reset Your SpotLocalPro Password");
+
+        String htmlContent = "<!DOCTYPE html>" +
+                "<html><body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>" +
+                "<div style='background: linear-gradient(135deg, #fb923c, #f59e0b); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;'>" +
+                "<h1 style='color: white; margin: 0;'>Password Reset Request</h1>" +
+                "</div>" +
+                "<div style='background: #fff; padding: 30px; border: 1px solid #fed7aa; border-top: none; border-radius: 0 0 12px 12px;'>" +
+                "<p style='color: #1f2937; font-size: 16px;'>Hi " + username + ",</p>" +
+                "<p style='color: #4b5563; font-size: 14px; line-height: 1.6;'>" +
+                "We received a request to reset your password. Click the button below to set a new one. " +
+                "This link will expire in 1 hour." +
+                "</p>" +
+                "<div style='text-align: center; margin: 30px 0;'>" +
+                "<a href='" + resetLink + "' style='background: #fb923c; color: white; padding: 12px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;'>Reset Password</a>" +
+                "</div>" +
+                "<p style='color: #6b7280; font-size: 13px; line-height: 1.6;'>" +
+                "If the button doesn't work, copy and paste this link into your browser:<br>" +
+                "<span style='color: #f59e0b; word-break: break-all;'>" + resetLink + "</span>" +
+                "</p>" +
+                "<hr style='border: none; border-top: 1px solid #fed7aa; margin: 20px 0;'>" +
+                "<p style='color: #9ca3af; font-size: 12px;'>" +
+                "If you didn't request this, you can safely ignore this email. Your password won't change." +
+                "</p>" +
+                "</div>" +
+                "</body></html>";
+
+        helper.setText(htmlContent, true);
+        mailSender.send(message);
+    }
     /**
      * Send provider approval email
      */

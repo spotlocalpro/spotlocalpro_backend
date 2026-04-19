@@ -8,10 +8,8 @@ import lombok.Setter;
 
 @AllArgsConstructor
 @NoArgsConstructor
-
 @Getter
 @Setter
-
 @Entity
 @Table(name = "addresses")
 public class Address {
@@ -20,29 +18,33 @@ public class Address {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer addressId;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User user;
+    @Column(name = "user_id", nullable = false)
+    private Integer user;
 
     @Column(nullable = false)
-    private String type; // home, work, other
+    private String label;
 
     @Column(nullable = false)
-    private String street;
+    private String streetAddress;
 
     @Column(nullable = false)
     private String city;
 
-    @Column(nullable = false)
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
+    @Column
     private String state;
 
-    @Column(nullable = false)
+    @Column
     private String zipCode;
 
     @Column(nullable = false)
     private String country;
 
     @Column(columnDefinition = "BOOLEAN DEFAULT FALSE")
-    private Boolean isDefault;
-
+    private Boolean isDefault = false;
 }

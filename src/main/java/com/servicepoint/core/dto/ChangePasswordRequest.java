@@ -5,14 +5,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.List;
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProviderWithUser {
-    private Integer id;
-    private UserResponse user;
-    private List<ServiceInfo> services;
+public class ChangePasswordRequest {
+    private String currentPassword;
+    private String newPassword;
 }

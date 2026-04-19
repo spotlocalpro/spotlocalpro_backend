@@ -22,4 +22,6 @@ public interface ProviderRegistrationRepository extends JpaRepository<ProviderRe
     Optional<ProviderRegistration> findByEmail(String email);
 
     List<ProviderRegistration> findByStatus(ProviderRegistration.RegistrationStatus status);
+
+    boolean existsByEmail(String email);
 }

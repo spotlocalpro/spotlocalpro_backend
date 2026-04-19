@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
@@ -17,7 +18,9 @@ import java.util.stream.Collectors;
 @Component
 public class JwtUtil {
 
-    private final String SECRET_KEY = "MxYMZVfvXiQC19LK2OTicNI8ZxGHQuGc";
+    @Value("${jwt.secret}")
+    private String SECRET_KEY;
+
 
     private Key getSigningKey() {
         byte[] keyBytes = SECRET_KEY.getBytes();

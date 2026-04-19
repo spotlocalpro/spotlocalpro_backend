@@ -1,18 +1,19 @@
 package com.servicepoint.core.controller;
 
-import com.servicepoint.core.dto.UpdateProfileRequest;
-import com.servicepoint.core.dto.UserInfo;
-import com.servicepoint.core.dto.UserResponse;
+import com.servicepoint.core.dto.*;
 import com.servicepoint.core.model.User;
 import com.servicepoint.core.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -117,5 +118,19 @@ public class UserController {
         var updatedProfile = userService.updateProfile(request, userId);
         return ResponseEntity.ok(updatedProfile);
 
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(
+            @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        try {
+            userService.changePassword(userDetails.getUsername(), request.getCurrentPassword(), request.getNewPassword());
+            return ResponseEntity.ok(Map.of("message", "Password changed successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(new ErrorResponse(e.getMessage()));
+        }
     }
 }

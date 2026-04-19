@@ -12,4 +12,5 @@ FeedbackResponse saveFeedback(FeedbackRequest feedback);
     void deleteFeedback(Integer feedbackId);
     List<FeedbackResponse>  findFeedbackByCustomerId(Integer customerId);
     List<FeedbackResponse>  findFeedbackByProviderId(Integer providerId);
+    List<FeedbackResponse> findFeedbackByBookingId(Integer bookingId);
 }

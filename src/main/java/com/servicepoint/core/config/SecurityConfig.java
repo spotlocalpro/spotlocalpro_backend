@@ -2,8 +2,11 @@ package com.servicepoint.core.config;
 
 import com.servicepoint.core.security.JwtAuthenticationFilter;
 import com.servicepoint.core.security.JwtUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -49,11 +52,9 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtUtil jwtUtil, UserDetailsService uds) {
-        JwtAuthenticationFilter f = new JwtAuthenticationFilter();
-        f.setJwtUtil(jwtUtil);
-        f.setUserDetailsService(uds);
-        return f;
+    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtUtil jwtUtil,
+                                                           UserDetailsService uds) {
+        return new JwtAuthenticationFilter(jwtUtil, uds);
     }
 
     @Bean
@@ -64,12 +65,19 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
+
+                        // ✅ Allow ALL OPTIONS preflight requests
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         // Public endpoints - no authentication required
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/users/register").permitAll()
                         .requestMatchers("/api/users/login").permitAll()
+                        .requestMatchers("/api/users/me").permitAll()
                         .requestMatchers("/api/tokens/renew_access").permitAll()
                         .requestMatchers("/api/tokens/validate").permitAll()
+                        .requestMatchers("/api/auth/check-username").permitAll()
+                        .requestMatchers("/api/auth/check-email").permitAll()
 
                         // Health check and documentation endpoints
                         .requestMatchers("/health", "/actuator/**").permitAll()
@@ -87,22 +95,33 @@ public class SecurityConfig {
                         .requestMatchers("/api/provider-registration/approve/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/provider-registration/reject/**").hasAuthority("ROLE_ADMIN")
 
-                        // Provider Auth - public status check, authenticated login
-                        .requestMatchers("/api/provider-auth/status").permitAll()
+                        // Provider Auth - public status check and login
+                        .requestMatchers("/api/provider-auth/status/**").permitAll()
                         .requestMatchers("/api/provider-auth/login").permitAll()
-                        .requestMatchers("/api/payments/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER")
 
-                        // Admin endpoints - require ADMIN role
+                        // Payments
+                        .requestMatchers("/api/payments/**").hasAnyAuthority(
+                                "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"
+                        )
+
+                        // Admin endpoints
                         .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                        .requestMatchers("/api/users/all").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/uploads/provider-documents/**").hasAuthority("ROLE_ADMIN")
 
-                        // User endpoints - require authenticated users
-                        .requestMatchers("/api/users/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER")
-                        .requestMatchers("/api/services/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER")
-                        .requestMatchers("/api/bookings/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER")
-                        .requestMatchers("/api/feedback/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER")
-                        .requestMatchers("/api/providers/**").hasAnyAuthority("ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER")
+                        // Services - public
+                        .requestMatchers("/api/services/**").permitAll()
+
+                        // Authenticated user endpoints
+                        .requestMatchers("/api/bookings/**").hasAnyAuthority(
+                                "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"
+                        )
+                        .requestMatchers("/api/feedback/**").hasAnyAuthority(
+                                "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"
+                        )
+                        .requestMatchers("/api/users/**").hasAnyAuthority("ROLE_CUSTOMER", "ROLE_PROVIDER", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.GET,"/api/providers/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/providers/nearby-service").permitAll()
+                        .requestMatchers("/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
 
                         // All other requests require authentication
                         .anyRequest().authenticated()
@@ -113,11 +132,21 @@ public class SecurityConfig {
         return http.build();
     }
 
+    // Add this at the top of your class
+    @Value("${cors.allowed.origins:http://localhost:3000,http://localhost:5173,http://localhost:5174}")
+    private String allowedOriginsStr;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+
+        // reads from application.properties → CORS_ALLOWED_ORIGINS env var on Railway
+        List<String> origins = Arrays.asList(allowedOriginsStr.split(","));
+        configuration.setAllowedOriginPatterns(origins);
+
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+        ));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

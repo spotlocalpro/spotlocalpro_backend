@@ -4,11 +4,15 @@ import com.servicepoint.core.dto.UpdateBookingRequest;
 import com.servicepoint.core.dto.*;
 import com.servicepoint.core.exception.ResourceNotFoundException;
 import com.servicepoint.core.model.Booking;
+import com.servicepoint.core.model.Feedback;
 import com.servicepoint.core.model.ServiceCatalog;
 import com.servicepoint.core.model.User;
 import com.servicepoint.core.repository.BookingRepository;
+import com.servicepoint.core.repository.FeedbackRepository;
 import com.servicepoint.core.repository.ServiceCatalogRepository;
 import com.servicepoint.core.repository.UserRepository;
+
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +28,11 @@ public class BookingServiceImpl implements BookingService {
     private UserRepository userRepository;
     @Autowired
     private ServiceCatalogRepository serviceCatalogRepository;
+    @Autowired
+    private FeedbackRepository feedbackRepository;
+    @Autowired
+    private BookingNotificationService bookingNotificationService;
+
     @Override
     public List<BookingInfo> findAllBookings() {
         var bookings =  bookingRepository.findAll();
@@ -36,6 +45,7 @@ public class BookingServiceImpl implements BookingService {
                 booking.getNotes(),
                 booking.getPriceAtBooking(),
                 booking.getPricingTypeAtBooking(),
+                booking.getTotalPrice(),
                 new CustomerInfo(
                         booking.getCustomer().getUserId(),
                         booking.getCustomer().getUsername(),
@@ -74,6 +84,7 @@ public class BookingServiceImpl implements BookingService {
                 booking.getNotes(),
                 booking.getPriceAtBooking(),
                 booking.getPricingTypeAtBooking(),
+                booking.getTotalPrice(),
                 new CustomerInfo(
                         booking.getCustomer().getUserId(),
                         booking.getCustomer().getUsername(),
@@ -92,7 +103,7 @@ public class BookingServiceImpl implements BookingService {
                         booking.getService().getAvailability(),
                         booking.getService().getPrice(),
                         booking.getService().getPricingType(),
-                         booking.getService().getLevel(), booking.getService().getSubject()
+                        booking.getService().getLevel(), booking.getService().getSubject()
 
                 )
         );
@@ -101,14 +112,28 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public Booking updateBooking(Integer bookingId, UpdateBookingRequest request) {
-        Booking existing = bookingRepository.findById(bookingId).
-                orElseThrow(()-> new ResourceNotFoundException("Booking not found"));
+        Booking existing = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
-        existing.setServiceDateTime(request.getServiceDateTime());
-        existing.setStatus(request.getStatus());
-        existing.setNotes(request.getNotes());
-        existing.setPriceAtBooking(request.getPriceAtBooking());
-        existing.setPricingTypeAtBooking(request.getPricingTypeAtBooking());
+        if (request.getServiceDateTime() != null)
+            existing.setServiceDateTime(request.getServiceDateTime());
+
+        if (request.getStatus() != null)
+            existing.setStatus(request.getStatus());
+
+        if (request.getNotes() != null)
+            existing.setNotes(request.getNotes());
+
+        if (request.getPriceAtBooking() != null)
+            existing.setPriceAtBooking(request.getPriceAtBooking());
+
+        if (request.getPricingTypeAtBooking() != null)
+            existing.setPricingTypeAtBooking(request.getPricingTypeAtBooking());
+
+        // ✅ Preserve totalPrice — don't overwrite with null
+        if (request.getTotalPrice() != null) {
+            existing.setTotalPrice(request.getTotalPrice());
+        }
 
         return bookingRepository.save(existing);
     }
@@ -136,19 +161,22 @@ public class BookingServiceImpl implements BookingService {
         booking.setServiceDateTime(request.getServiceDateTime());
         booking.setNotes(request.getNotes());
 
-        bookingRepository.save(booking);
+        Booking savedBooking = bookingRepository.save(booking);
+
+        // Fire email notification to provider (async, won't block or fail the request)
+        bookingNotificationService.sendNewBookingRequestToProvider(savedBooking);
 
         // Build and return NewBookingResponse
         return new NewBookingResponse(
-                booking.getBookingId(),
-                booking.getBookingDate(),
-                booking.getServiceDateTime(),
-                booking.getStatus(),
-                booking.getNotes(),
-                booking.getPriceAtBooking(),
-                booking.getPricingTypeAtBooking(),
-                new CustomerInfo(customer.getUserId(),customer.getUsername(), customer.getEmail()),
-                new ProviderInfo(provider.getUserId(), provider.getUsername(), booking.getProvider().getEmail(), booking.getProvider().getRole()),
+                savedBooking.getBookingId(),
+                savedBooking.getBookingDate(),
+                savedBooking.getServiceDateTime(),
+                savedBooking.getStatus(),
+                savedBooking.getNotes(),
+                savedBooking.getPriceAtBooking(),
+                savedBooking.getPricingTypeAtBooking(),
+                new CustomerInfo(customer.getUserId(), customer.getUsername(), customer.getEmail()),
+                new ProviderInfo(provider.getUserId(), provider.getUsername(), provider.getEmail(), provider.getRole()),
                 new ServiceInfo(service.getServiceId(), service.getName(),
                         service.getDescription(), service.getCategory(),
                         service.getAvailability(), service.getPrice(), service.getPricingType(),
@@ -178,6 +206,7 @@ public class BookingServiceImpl implements BookingService {
                 booking.getNotes(),
                 booking.getPriceAtBooking(),
                 booking.getPricingTypeAtBooking(),
+                booking.getTotalPrice(),
                 new CustomerInfo(
                         booking.getCustomer().getUserId(),
                         booking.getCustomer().getUsername(),
@@ -215,6 +244,7 @@ public class BookingServiceImpl implements BookingService {
                 booking.getNotes(),
                 booking.getPriceAtBooking(),
                 booking.getPricingTypeAtBooking(),
+                booking.getTotalPrice(),
                 new CustomerInfo(
                         booking.getCustomer().getUserId(),
                         booking.getCustomer().getUsername(),
@@ -224,7 +254,13 @@ public class BookingServiceImpl implements BookingService {
                         booking.getProvider().getUserId(),
                         booking.getProvider().getUsername(),
                         booking.getProvider().getEmail(),
-                        booking.getProvider().getRole()
+                        booking.getProvider().getRole(),
+                        feedbackRepository
+                                .findByBookingBookingId(booking.getBookingId())
+                                .map(Feedback::getRating)
+                                .orElse(0),
+                        feedbackRepository.findByBookingBookingId(booking.getBookingId())
+                                .map(Feedback::getComments).orElse("")
                 ),
                 new ServiceInfo(
                         booking.getService().getServiceId(),

@@ -10,7 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 @Service
@@ -40,11 +42,12 @@ public class OtpService {
         otp.setPurpose(purpose);
         otp.setIsUsed(false);
 
+        // Send email
+        emailService.sendOtpEmail(email, otpCode, purpose);
+
         // Save to database
         otpRepository.save(otp);
 
-        // Send email
-        emailService.sendOtpEmail(email, otpCode, purpose);
     }
 
     /**
@@ -77,17 +80,22 @@ public class OtpService {
     /**
      * Check if OTP can be resent (rate limiting)
      */
-    public boolean canResendOtp(String email, String purpose) {
+    public String canResendOtp(String email, String purpose) {
         Optional<OtpCode> lastOtp = otpRepository
                 .findTopByEmailAndPurposeOrderByCreatedAtDesc(email, purpose);
 
-        if (lastOtp.isEmpty()) {
-            return true;
+        if (lastOtp.isPresent()) {
+            Instant tenMinutesAgo = Instant.now().minus(10, ChronoUnit.MINUTES);
+            Instant createdAt = lastOtp.get().getCreatedAt().toInstant();
+
+            if (createdAt.isBefore(tenMinutesAgo)) {
+                return "OTP_TO_BE_SENT"; // old → allow resend
+            } else {
+                return "TIME_LEFT"; // still within 10 min → block
+            }
         }
 
-        // Allow resend after 1 minute
-        LocalDateTime oneMinuteAgo = LocalDateTime.now().minusMinutes(1);
-        return lastOtp.get().getCreatedAt().toLocalDateTime().isBefore(oneMinuteAgo);
+        return "OTP_TO_BE_SENT"; // no OTP exists → allow
     }
 
     /**

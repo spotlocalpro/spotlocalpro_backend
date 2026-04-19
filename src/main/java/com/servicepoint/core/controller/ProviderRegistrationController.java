@@ -38,9 +38,9 @@ public class ProviderRegistrationController {
             if (email == null || email.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
             }
-
+            String caseTypeOfSendingOtp = otpService.canResendOtp(email, "provider_registration");
             // Check rate limiting
-            if (!otpService.canResendOtp(email, "provider_registration")) {
+            if ("TIME_LEFT".equalsIgnoreCase(caseTypeOfSendingOtp)) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                         .body(Map.of("error", "Please wait before requesting another OTP"));
             }

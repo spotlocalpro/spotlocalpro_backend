@@ -1,6 +1,9 @@
 package com.servicepoint.core.controller;
 
 import com.servicepoint.core.dto.*;
+import com.servicepoint.core.model.ProviderRegistration;
+import com.servicepoint.core.repository.ProviderRegistrationRepository;
+import com.servicepoint.core.service.PasswordResetService;
 import com.servicepoint.core.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -9,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*")
@@ -16,6 +21,12 @@ public class AuthController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private PasswordResetService passwordResetService;
+
+    @Autowired
+    private ProviderRegistrationRepository providerRegistrationRepository;
 
     /**
      * Step 1: Request OTP for registration
@@ -51,6 +62,25 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("Registration failed", "An unexpected error occurred"));
         }
+    }
+
+    @GetMapping("/check-username")
+    public ResponseEntity<?> checkUsername(@RequestParam String username) {
+        boolean exists = userService.existsByUsername(username);
+        return ResponseEntity.ok(Map.of("available", !exists));
+    }
+
+    @GetMapping("/check-email")
+    public ResponseEntity<?> checkEmail(@RequestParam String email) {
+
+        boolean existsInRegistrations = providerRegistrationRepository.existsByEmail(email);
+        boolean existsInUsers = userService.existsByEmail(email);
+
+        boolean exists = existsInRegistrations || existsInUsers;
+
+        return ResponseEntity.ok(Map.of(
+                "available", !exists
+        ));
     }
 
     /**
@@ -90,6 +120,42 @@ public class AuthController {
         }
     }
 
+    /**
+     * Request password reset email.
+     * POST /api/auth/forgot-password
+     * Always returns 200 to prevent user enumeration.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        try {
+            passwordResetService.handleForgotPassword(request.getEmail());
+        } catch (Exception e) {
+            System.out.println("DEBUG >> Forgot password error (swallowed): " + e.getMessage());
+        }
+        return ResponseEntity.ok(Map.of(
+                "message", "If that email exists, a reset link has been sent."
+        ));
+    }
+
+    /**
+     * Reset password using a valid token.
+     * POST /api/auth/reset-password
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        try {
+            boolean success = passwordResetService.resetPassword(request.getToken(), request.getNewPassword());
+            if (!success) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("message", "Invalid or expired reset token."));
+            }
+            return ResponseEntity.ok(Map.of("message", "Password reset successfully."));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Password reset failed", "An unexpected error occurred"));
+        }
+    }
+
     // Inner class for error responses
     public static class ErrorResponse {
         private String error;
@@ -102,7 +168,6 @@ public class AuthController {
             this.timestamp = System.currentTimeMillis();
         }
 
-        // Getters
         public String getError() { return error; }
         public String getMessage() { return message; }
         public long getTimestamp() { return timestamp; }

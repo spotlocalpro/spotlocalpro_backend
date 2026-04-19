@@ -38,6 +38,11 @@ public class StripePaymentService {
         Stripe.apiKey = stripeApiKey;
     }
 
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        Stripe.apiKey = stripeApiKey;
+    }
+
     /**
      * Create Stripe Checkout Session for booking payment
      */

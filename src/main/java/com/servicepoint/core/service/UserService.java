@@ -21,10 +21,15 @@ public interface UserService {
     // User CRUD operations
     List<User> findAllUsers();
     Optional<User> findUserById(Integer userId);
+
     Optional<User> findUserByUsername(String username);
+    boolean existsByUsername(String username);
     Optional<User> findUserByEmail(String email);
+    boolean existsByEmail(String email);
     User saveUser(User user);
     void deleteUser(Integer userId);
+    void changePassword(String username, String currentPassword, String newPassword);
+
 
 
 

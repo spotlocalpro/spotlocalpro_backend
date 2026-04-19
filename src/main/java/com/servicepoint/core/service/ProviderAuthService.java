@@ -42,6 +42,14 @@ public class ProviderAuthService {
                         true
                 );
             }
+            if ("admin".equals(user.getRole())){
+                return new ProviderStatusResponse(
+                        "approved",
+                        "Welcome Admin!! You can login.",
+                        true
+                );
+            }
+
         }
 
         // Check pending registration

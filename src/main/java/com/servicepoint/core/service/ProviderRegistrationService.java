@@ -69,6 +69,8 @@ public class ProviderRegistrationService {
             List<MultipartFile> documents
     ) throws Exception {
 
+
+
         // Verify OTP
         if (!otpService.verifyOtp(email, otpCode, "provider_registration")) {
             throw new IllegalArgumentException("Invalid or expired OTP");
@@ -131,7 +133,7 @@ public class ProviderRegistrationService {
 
         // Create user account
         User user = new User();
-        user.setUsername(registration.getFirstName() + " " + registration.getLastName());
+        user.setUsername(generateUniqueUsername(registration.getFirstName(),registration.getLastName()));
         user.setEmail(registration.getEmail());
         user.setPasswordHash(registration.getPasswordHash());
         user.setRole("provider");
@@ -187,6 +189,25 @@ public class ProviderRegistrationService {
         );
     }
 
+
+    // Auto-generate unique username from firstName + lastName
+    private String generateUniqueUsername(String firstName, String lastName) {
+        // Base: john_doe
+        String base = firstName.toLowerCase() + "_" + lastName.toLowerCase();
+        // Remove special characters
+        base = base.replaceAll("[^a-z0-9_]", "");
+
+        String username = base;
+        int counter = 1;
+
+        // Keep trying until unique
+        while (userRepository.existsByUsername(username)) {
+            username = base + counter;
+            counter++;
+        }
+
+        return username;
+    }
     /**
      * Get documents for a registration
      */

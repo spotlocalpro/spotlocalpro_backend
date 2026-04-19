@@ -19,6 +19,8 @@ public class FeedbackController {
     @Autowired
     private FeedbackService feedbackService;
 
+
+
     /**
      * Get all feedback OR filter by customer_id or provider_id using query parameters
      * Examples:
@@ -91,13 +93,10 @@ public class FeedbackController {
      * @return List of feedback for the specific booking
      */
     @GetMapping("/booking/{bookingId}")
-    public ResponseEntity<List<FeedbackResponse>> getFeedbackByBooking(@PathVariable Integer bookingId) {
-        //TODO: add the service method and implementation to fetch feedback by booking
-        // List<FeedbackResponse> bookingFeedback = feedbackService.findFeedbackByBookingId(bookingId);
-        // return ResponseEntity.ok(bookingFeedback);
-
-        // For now, returning all feedback
-        List<FeedbackResponse> feedbackList = feedbackService.fetchAllFeedback();
-        return ResponseEntity.ok(feedbackList);
+    public ResponseEntity<List<FeedbackResponse>> getFeedbackByBooking(
+            @PathVariable Integer bookingId) {
+        List<FeedbackResponse> bookingFeedback =
+                feedbackService.findFeedbackByBookingId(bookingId);
+        return ResponseEntity.ok(bookingFeedback);
     }
 }
