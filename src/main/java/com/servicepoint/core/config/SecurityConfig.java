@@ -133,16 +133,19 @@ public class SecurityConfig {
     }
 
     // Add this at the top of your class
-    @Value("${cors.allowed.origins:http://localhost:3000,http://localhost:5173,http://localhost:5174}")
+    @Value("${cors.allowed.origins:http://localhost:3000,http://localhost:5173,https://www.spotlocalpro.com}")
     private String allowedOriginsStr;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // reads from application.properties → CORS_ALLOWED_ORIGINS env var on Railway
-        List<String> origins = Arrays.asList(allowedOriginsStr.split(","));
-        configuration.setAllowedOriginPatterns(origins);
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "https://www.spotlocalpro.com",
+                "https://spotlocalpro.com",
+                "http://localhost:5173",
+                "http://localhost:3000"
+        ));
 
         configuration.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
@@ -155,4 +158,6 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
+
+
 }
