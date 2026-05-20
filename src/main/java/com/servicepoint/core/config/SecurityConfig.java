@@ -78,7 +78,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/tokens/validate").permitAll()
                         .requestMatchers("/api/auth/check-username").permitAll()
                         .requestMatchers("/api/auth/check-email").permitAll()
-                        .requestMatchers("/api/bookings/*/approve").permitAll()  
+                        .requestMatchers("/api/bookings/*/approve").permitAll()
                         .requestMatchers("/api/bookings/*/decline").permitAll()
 
                         // Health check and documentation endpoints

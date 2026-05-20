@@ -134,7 +134,7 @@ public class EmailService {
                             </ol>
                         </div>
                         
-                        <a href="http://localhost:3000/auth/login" 
+                        <a href="https://spotlocalpro.com/auth/login" 
                            style="display: inline-block; padding: 12px 30px; background-color: #4CAF50; 
                                   color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
                             Login to Dashboard
@@ -145,7 +145,7 @@ public class EmailService {
                         </p>
                     </div>
                     <div style="background-color: #333; color: white; padding: 15px; text-align: center;">
-                        <p style="margin: 0;">© 2025 ServicePoint. All rights reserved.</p>
+                        <p style="margin: 0;">© 2026 SpotLocalPro. All rights reserved.</p>
                     </div>
                 </body>
                 </html>
@@ -167,7 +167,7 @@ public class EmailService {
                     </div>
                     <div style="padding: 20px; background-color: #f9f9f9;">
                         <h2>Dear %s,</h2>
-                        <p>Thank you for your interest in becoming a service provider on ServicePoint.</p>
+                        <p>Thank you for your interest in becoming a service provider on SpotLocalPro.</p>
                         
                         <p>After careful review, we regret to inform you that we cannot approve your registration at this time.</p>
                         
@@ -188,7 +188,7 @@ public class EmailService {
                         </p>
                     </div>
                     <div style="background-color: #333; color: white; padding: 15px; text-align: center;">
-                        <p style="margin: 0;">© 2025 ServicePoint. All rights reserved.</p>
+                        <p style="margin: 0;">© 2025 SpotLocalPro. All rights reserved.</p>
                     </div>
                 </body>
                 </html>
@@ -243,7 +243,7 @@ public class EmailService {
                         </p>
                     </div>
                     <div style="background-color: #333; color: white; padding: 15px; text-align: center;">
-                        <p style="margin: 0;">© 2025 ServicePoint. All rights reserved.</p>
+                        <p style="margin: 0;">© 2025 SpotLocalPro. All rights reserved.</p>
                     </div>
                 </body>
                 </html>
@@ -255,7 +255,7 @@ public class EmailService {
     private String getOtpSubject(String purpose) {
         return switch (purpose) {
             case "provider_registration" -> "Verify Your Email - Service Provider Registration";
-            case "registration" -> "Verify Your Email - ServicePoint Registration";
+            case "registration" -> "Verify Your Email - SpotLocalPro Registration";
             case "login" -> "Your Login OTP Code";
             case "password_reset" -> "Password Reset OTP Code";
             default -> "Your OTP Code";
@@ -295,7 +295,7 @@ public class EmailService {
                         </p>
                     </div>
                     <div style="background-color: #333; color: white; padding: 15px; text-align: center;">
-                        <p style="margin: 0; font-size: 12px;">© 2025 ServicePoint. All rights reserved.</p>
+                        <p style="margin: 0; font-size: 12px;">© 2025 SpotLocalPro. All rights reserved.</p>
                     </div>
                 </body>
                 </html>

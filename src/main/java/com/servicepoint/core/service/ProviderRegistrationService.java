@@ -320,7 +320,7 @@ public class ProviderRegistrationService {
                             </table>
                            \s
                             <div style="margin-top: 30px;">
-                                <a href="http://localhost:5173/admin/registrations/%d"\s
+                                <a href="https://spotlocalpro.com/admin/registrations/%d"\s
                                    style="display: inline-block; padding: 12px 30px; background-color: #4CAF50;\s
                                           color: white; text-decoration: none; border-radius: 5px;">
                                     Review Registration

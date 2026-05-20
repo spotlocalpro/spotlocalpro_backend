@@ -38,11 +38,11 @@ public class BookingActionController {
     private static final String STATUS_DECLINED = "declined";
 
     @Autowired
-    private  BookingRepository bookingRepository;
+    private BookingRepository bookingRepository;
     @Autowired
-    private  BookingActionTokenService tokenService;
+    private BookingActionTokenService tokenService;
     @Autowired
-    private  BookingNotificationService notificationService;
+    private BookingNotificationService notificationService;
 
 
     @GetMapping(value = "/{bookingId}/approve", produces = MediaType.TEXT_HTML_VALUE)
@@ -120,23 +120,21 @@ public class BookingActionController {
         }
     }
 
-    /** Simple styled confirmation page. */
+    /** Simple styled confirmation page - OPTIMIZED & SIMPLIFIED */
     private static String page(String title, String message, String accentColor) {
-        return "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + title + " — ServicePoint</title>"
+        return "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + title + " — SpotLocalPro</title>"
                 + "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-                + "<style>body{font-family:-apple-system,Segoe UI,Arial,sans-serif;background:#f9fafb;"
-                + "margin:0;padding:40px 20px;color:#1f2937;}"
-                + ".card{max-width:520px;margin:60px auto;background:#fff;border-radius:14px;"
-                + "padding:40px;box-shadow:0 4px 20px rgba(0,0,0,0.06);text-align:center;}"
-                + ".bar{height:6px;background:" + accentColor + ";border-radius:14px 14px 0 0;"
-                + "margin:-40px -40px 30px;}"
-                + "h1{font-size:26px;margin:0 0 16px;color:" + accentColor + ";}"
-                + "p{font-size:16px;line-height:1.6;color:#4b5563;margin:0 0 24px;}"
-                + ".brand{font-size:13px;color:#9ca3af;margin-top:28px;}"
+                + "<style>"
+                + "body{font-family:-apple-system,Segoe UI,Arial,sans-serif;background:#f9fafb;margin:0;padding:40px 20px;color:#1f2937;}"
+                + ".card{max-width:500px;margin:50px auto;background:#fff;border-radius:12px;padding:35px;text-align:center;}"
+                + ".bar{height:5px;background:" + accentColor + ";border-radius:12px 12px 0 0;margin:-35px -35px 25px;}"
+                + "h1{font-size:24px;margin:0 0 14px;color:" + accentColor + ";}"
+                + "p{font-size:15px;line-height:1.5;color:#4b5563;margin:0 0 20px;}"
+                + ".brand{font-size:15px;color:#6b7280;margin-top:28px;font-weight:600;}"
                 + "</style></head><body>"
                 + "<div class='card'><div class='bar'></div>"
                 + "<h1>" + title + "</h1><p>" + message + "</p>"
-                + "<div class='brand'>— ServicePoint</div>"
+                + "<div class='brand'>The SpotLocalPro Team</div>"
                 + "</div></body></html>";
     }
 }
