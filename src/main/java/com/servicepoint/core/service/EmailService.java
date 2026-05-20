@@ -14,22 +14,40 @@ public class EmailService {
     @Autowired
     private JavaMailSender mailSender;
 
+    @Autowired
+    private BrevoEmailService brevoEmailService;
+
     @Value("${spring.mail.username}")
     private String fromEmail;
 
     /**
-     * Send generic email
+     * Send generic email - tries Brevo first, falls back to SMTP
      */
     public void sendEmail(String to, String subject, String body) throws MessagingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
+        // Try Brevo API first
+        boolean brevoSuccess = brevoEmailService.sendEmail(to, subject, body);
 
-        helper.setFrom(fromEmail);
-        helper.setTo(to);
-        helper.setSubject(subject);
-        helper.setText(body, true);
+        if (brevoSuccess) {
+            return; // Email sent successfully via Brevo
+        }
 
-        mailSender.send(message);
+        // Fallback to SMTP (will likely fail on Railway but works locally)
+        System.out.println("⚠️ Brevo failed, trying SMTP fallback...");
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(body, true);
+
+            mailSender.send(message);
+            System.out.println("✅ SMTP fallback succeeded");
+        } catch (Exception e) {
+            System.err.println("❌ SMTP fallback also failed: " + e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -78,9 +96,19 @@ public class EmailService {
                 "</div>" +
                 "</body></html>";
 
+        // Try Brevo first, fallback to SMTP
+        boolean brevoSuccess = brevoEmailService.sendEmail(toEmail, "Reset Your SpotLocalPro Password", htmlContent);
+
+        if (brevoSuccess) {
+            return;
+        }
+
+        // Fallback to SMTP
+        System.out.println("⚠️ Brevo failed for password reset, trying SMTP fallback...");
         helper.setText(htmlContent, true);
         mailSender.send(message);
     }
+
     /**
      * Send provider approval email
      */
