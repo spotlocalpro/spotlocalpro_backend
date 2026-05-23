@@ -25,9 +25,10 @@ public class ProviderDocument {
     @JoinColumn(name = "registration_id", nullable = false)
     private ProviderRegistration registration;
 
-    @Lob
-    @Column(name = "file_data", columnDefinition = "LONGBLOB")
+    // Remove @Lob — it causes issues with PostgreSQL
+    @Column(name = "file_data", columnDefinition = "BYTEA")
     private byte[] fileData;
+
 
 
     @Column(nullable = false)
