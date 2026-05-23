@@ -80,6 +80,13 @@ public class ServiceController {
                     Map<String, Object> map = new HashMap<>();
                     map.put("serviceId", service.getServiceId());
                     map.put("name", service.getName());
+                    map.put("description", service.getDescription());
+                    map.put("category", service.getCategory());
+                    map.put("price", service.getPrice());
+                    map.put("pricingType", service.getPricingType());
+                    map.put("availability", service.getAvailability());
+                    map.put("level", service.getLevel());
+                    map.put("subject", service.getSubject());
                     return map;
                 })
                 .toList();
@@ -89,5 +96,6 @@ public class ServiceController {
 
         return ResponseEntity.ok(response);
     }
+
 
 }

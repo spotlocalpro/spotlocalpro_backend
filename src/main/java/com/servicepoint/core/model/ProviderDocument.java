@@ -25,6 +25,11 @@ public class ProviderDocument {
     @JoinColumn(name = "registration_id", nullable = false)
     private ProviderRegistration registration;
 
+    @Lob
+    @Column(name = "file_data", columnDefinition = "LONGBLOB")
+    private byte[] fileData;
+
+
     @Column(nullable = false)
     private String documentType; // "certificate", "id_proof", "other"
 

@@ -212,6 +212,7 @@ public class ProviderService {
                 provider.getUsername(),
                 provider.getEmail(),
                 provider.getRole(),
+                provider.getBio(),
                 provider.getProfilePicture(),
                 provider.getLocation(),
                 provider.getLatitude(),

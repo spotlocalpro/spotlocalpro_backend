@@ -203,6 +203,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         user.setUsername(request.username());
         user.setEmail(request.email());
         user.setPhoneNumber(request.phoneNumber());
+        user.setBio(request.bio());
 
         var updatedUser = userRepository.save(user);
         return convertToDTO(updatedUser);
@@ -335,6 +336,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         userDTO.setLastLogin(user.getLastLogin() != null ? user.getLastLogin().toString() : null);
         userDTO.setCreatedAt(user.getCreatedAt().toString());
         userDTO.setUpdatedAt(user.getUpdatedAt().toString());
+        userDTO.setBio(user.getBio());
         return userDTO;
     }
 

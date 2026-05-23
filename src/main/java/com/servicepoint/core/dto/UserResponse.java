@@ -14,6 +14,7 @@ public class UserResponse {
     private String username;
     private String email;
     private String role;
+    private String bio;
     private Object profilePicture;
     private Object location;
     private Double latitude;

@@ -3,6 +3,7 @@ package com.servicepoint.core.controller;
 import com.servicepoint.core.dto.ProviderRegistrationDTO;
 import com.servicepoint.core.model.ProviderRegistration;
 import com.servicepoint.core.model.User;
+import com.servicepoint.core.repository.ProviderDocumentRepository;
 import com.servicepoint.core.service.ProviderRegistrationService;
 import com.servicepoint.core.service.OtpService;
 import jakarta.mail.MessagingException;
@@ -112,6 +113,24 @@ public class ProviderRegistrationController {
                     .body(Map.of("error", "Failed to fetch all registrations: " + e.getMessage()));
         }
     }
+
+
+    @Autowired
+    private ProviderDocumentRepository documentRepository;
+
+    @GetMapping("/documents/{documentId}")
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable Integer documentId) {
+        return documentRepository.findById(documentId)
+                .map(doc -> {
+                    String contentType = doc.getFileName().endsWith(".pdf") ? "application/pdf" : "application/octet-stream";
+                    return ResponseEntity.ok()
+                            .header("Content-Disposition", "attachment; filename=\"" + doc.getFileName() + "\"")
+                            .header("Content-Type", contentType)
+                            .body(doc.getFileData());
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
 
     /**
      * Get pending registrations (Admin only)

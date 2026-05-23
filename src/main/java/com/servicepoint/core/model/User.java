@@ -20,6 +20,9 @@ import java.util.List;
 @Table(name = "users")
 public class User {
 
+	public String getBio(){return bio;}
+
+	public void setBio(String bio){this.bio=bio;}
 
     public String getUsername() {
 		return username;
@@ -234,6 +237,8 @@ public class User {
     private Double rating;
 
     private Integer reviewCount;
+
+	private String bio;
 
     // REMOVED: private Double distanceMiles;
 

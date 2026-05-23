@@ -219,39 +219,24 @@ public class ProviderRegistrationService {
      * Save document to file system and database
      */
     private void saveDocument(MultipartFile file, ProviderRegistration registration) throws IOException {
-        // Create upload directory if not exists
-        Path uploadPath = Paths.get(uploadDir);
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
-
-        // Generate unique filename
         String originalFilename = file.getOriginalFilename();
-        String extension = originalFilename != null ?
-                originalFilename.substring(originalFilename.lastIndexOf(".")) : ".bin";
-        String filename = registration.getRegistrationId() + "_" + UUID.randomUUID() + extension;
 
-        // Save file to disk
-        Path filePath = uploadPath.resolve(filename);
-        Files.copy(file.getInputStream(), filePath);
-
-        // Determine document type based on file extension or name
-        String documentType = determineDocumentType(originalFilename);
-
-        // Create document record in database
         ProviderDocument document = new ProviderDocument();
         document.setRegistration(registration);
-        document.setDocumentType(documentType);
+        document.setDocumentType(determineDocumentType(originalFilename));
         document.setFileName(originalFilename);
-        document.setFileUrl("/uploads/provider-documents/" + filename);
+        document.setFileData(file.getBytes());
         document.setFileSize(file.getSize());
+        document.setFileUrl(""); // set after save when we have the ID
 
-        // Save to database
+        document = documentRepository.save(document);
+
+        document.setFileUrl("/api/provider-registration/documents/" + document.getDocumentId());
         documentRepository.save(document);
 
-        // Add to registration's document list (for bidirectional relationship)
         registration.getDocuments().add(document);
     }
+
 
     /**
      * Determine document type from filename
