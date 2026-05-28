@@ -32,22 +32,22 @@ public class OtpService {
      * Generate and send OTP to user's email
      */
     public void generateAndSendOtp(String email, String purpose) throws MessagingException {
-        // Generate 6-digit OTP
         String otpCode = generateOtpCode();
 
-        // Create OTP entity
         OtpCode otp = new OtpCode();
         otp.setEmail(email);
         otp.setOtpCode(otpCode);
         otp.setPurpose(purpose);
         otp.setIsUsed(false);
 
-        // Send email
+        // Send email first — if it throws, nothing is saved and the rate limit is not consumed
         emailService.sendOtpEmail(email, otpCode, purpose);
 
-        // Save to database
-        otpRepository.save(otp);
+        // Remove stale OTPs (expired or already used) for this email+purpose
+        otpRepository.deleteStaleByEmailAndPurpose(email, purpose);
 
+        // Save the fresh OTP in its own transaction
+        otpRepository.save(otp);
     }
 
     /**
@@ -78,24 +78,20 @@ public class OtpService {
     }
 
     /**
-     * Check if OTP can be resent (rate limiting)
+     * Returns remaining cooldown seconds before a new OTP can be sent.
+     * Returns 0 if an OTP can be sent immediately.
      */
-    public String canResendOtp(String email, String purpose) {
+    public long canResendOtp(String email, String purpose) {
         Optional<OtpCode> lastOtp = otpRepository
                 .findTopByEmailAndPurposeOrderByCreatedAtDesc(email, purpose);
 
         if (lastOtp.isPresent()) {
-            Instant tenMinutesAgo = Instant.now().minus(10, ChronoUnit.MINUTES);
-            Instant createdAt = lastOtp.get().getCreatedAt().toInstant();
-
-            if (createdAt.isBefore(tenMinutesAgo)) {
-                return "OTP_TO_BE_SENT"; // old → allow resend
-            } else {
-                return "TIME_LEFT"; // still within 10 min → block
-            }
+            Instant availableAt = lastOtp.get().getCreatedAt().toInstant().plus(10, ChronoUnit.MINUTES);
+            long secondsLeft = Instant.now().until(availableAt, ChronoUnit.SECONDS);
+            return Math.max(0, secondsLeft);
         }
 
-        return "OTP_TO_BE_SENT"; // no OTP exists → allow
+        return 0;
     }
 
     /**
@@ -114,5 +110,6 @@ public class OtpService {
     public void cleanupExpiredOtps() {
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
         otpRepository.deleteByExpiresAtBefore(now);
+        otpRepository.deleteByIsUsedTrue();
     }
 }

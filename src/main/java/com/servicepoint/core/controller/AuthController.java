@@ -2,6 +2,7 @@ package com.servicepoint.core.controller;
 
 import com.servicepoint.core.dto.*;
 import com.servicepoint.core.model.ProviderRegistration;
+import com.servicepoint.core.model.User;
 import com.servicepoint.core.repository.ProviderRegistrationRepository;
 import com.servicepoint.core.service.PasswordResetService;
 import com.servicepoint.core.service.UserService;
@@ -72,15 +73,23 @@ public class AuthController {
 
     @GetMapping("/check-email")
     public ResponseEntity<?> checkEmail(@RequestParam String email) {
-
-        boolean existsInRegistrations = providerRegistrationRepository.existsByEmail(email);
-        boolean existsInUsers = userService.existsByEmail(email);
-
-        boolean exists = existsInRegistrations || existsInUsers;
-
-        return ResponseEntity.ok(Map.of(
-                "available", !exists
-        ));
+        Map<String, Object> body;
+        if (userService.existsByEmail(email)) {
+            String role = userService.findUserByEmail(email)
+                    .map(u -> u.getRole().toLowerCase())
+                    .orElse("user");
+            String reason = "customer".equals(role)
+                    ? "This email is already registered as a customer. Please use a different email or log in."
+                    : "This email is already registered. Please use a different email.";
+            body = Map.of("available", false, "reason", reason);
+        } else if (providerRegistrationRepository.existsByEmail(email)) {
+            body = Map.of("available", false, "reason", "A provider registration with this email already exists.");
+        } else {
+            body = Map.of("available", true);
+        }
+        return ResponseEntity.ok()
+                .header("Cache-Control", "no-store, no-cache, must-revalidate")
+                .body(body);
     }
 
     /**

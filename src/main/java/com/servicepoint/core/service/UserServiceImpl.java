@@ -47,10 +47,13 @@ public class UserServiceImpl implements UserService, UserDetailsService {
             throw new RuntimeException("User with this email already exists");
         }
 
-        // Check rate limiting
-        if ("TIME_LEFT".equalsIgnoreCase(otpService.canResendOtp(email, "registration"))) {
-            throw new RuntimeException("Please wait before requesting new OTP");
+        long cooldownSeconds = otpService.canResendOtp(email, "registration");
+        if (cooldownSeconds > 0) {
+            // OTP was already sent and is still active (e.g. user refreshed page mid-flow).
+            // Return success so the frontend can show the OTP entry screen with remaining time.
+            return new SendOtpResponse(true, "OTP already sent to your email. Please check your inbox.", cooldownSeconds);
         }
+
         // Generate and send OTP
         otpService.generateAndSendOtp(email, "registration");
 
@@ -99,9 +102,9 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         User user = findUserByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Check rate limiting
-        if ("TIME_LEFT".equalsIgnoreCase(otpService.canResendOtp(user.getEmail(), "login"))) {
-            throw new RuntimeException("Please wait before requesting a new OTP");
+        long cooldownSeconds = otpService.canResendOtp(user.getEmail(), "login");
+        if (cooldownSeconds > 0) {
+            return new SendOtpResponse(true, "OTP already sent to your email. Please check your inbox.", cooldownSeconds);
         }
 
         // Generate and send OTP

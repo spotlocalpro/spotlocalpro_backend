@@ -53,6 +53,30 @@ public class ProviderRegistrationService {
     private String adminEmail;
 
     /**
+     * Validate that an email is eligible for a new provider registration.
+     * Throws IllegalArgumentException with a user-friendly message if not.
+     */
+    public void validateEmailEligibility(String email) {
+        if (userRepository.findByEmail(email).isPresent()) {
+            String role = userRepository.findByEmail(email).get().getRole().toLowerCase();
+            if ("customer".equals(role)) {
+                throw new IllegalArgumentException(
+                        "This email is already registered as a customer. Please use a different email.");
+            }
+            throw new IllegalArgumentException(
+                    "This email is already registered. Please use a different email.");
+        }
+        if (registrationRepository.findByEmailAndStatus(email, ProviderRegistration.RegistrationStatus.PENDING).isPresent()) {
+            throw new IllegalArgumentException(
+                    "A provider registration with this email is already pending approval.");
+        }
+        if (registrationRepository.findByEmailAndStatus(email, ProviderRegistration.RegistrationStatus.APPROVED).isPresent()) {
+            throw new IllegalArgumentException(
+                    "This email is already registered as a provider. Please log in instead.");
+        }
+    }
+
+    /**
      * Submit provider registration with documents
      */
     @Transactional

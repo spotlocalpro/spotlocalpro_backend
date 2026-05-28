@@ -39,11 +39,16 @@ public class ProviderRegistrationController {
             if (email == null || email.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
             }
-            String caseTypeOfSendingOtp = otpService.canResendOtp(email, "provider_registration");
-            // Check rate limiting
-            if ("TIME_LEFT".equalsIgnoreCase(caseTypeOfSendingOtp)) {
-                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(Map.of("error", "Please wait before requesting another OTP"));
+            // Reject early if email is already taken — before wasting an OTP send
+            registrationService.validateEmailEligibility(email);
+
+            long cooldownSeconds = otpService.canResendOtp(email, "provider_registration");
+            if (cooldownSeconds > 0) {
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "message", "OTP already sent to your email. Please check your inbox.",
+                        "expiresInSeconds", cooldownSeconds
+                ));
             }
 
             otpService.generateAndSendOtp(email, "provider_registration");
@@ -53,6 +58,8 @@ public class ProviderRegistrationController {
                     "message", "OTP sent to " + email
             ));
 
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (MessagingException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to send OTP email"));
