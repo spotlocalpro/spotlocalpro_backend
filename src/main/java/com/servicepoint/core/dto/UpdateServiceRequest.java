@@ -15,6 +15,7 @@ public class UpdateServiceRequest {
     private String description;
     private Double price;
     private String category;
+    private String subCategory;
     private String pricingType;
     private String availability;
     private String icon;

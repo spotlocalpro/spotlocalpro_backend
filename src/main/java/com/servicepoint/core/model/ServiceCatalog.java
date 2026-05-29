@@ -39,6 +39,8 @@ public class ServiceCatalog {
     @Column(nullable = false)
     private Double price;
 
+    private String subCategory;
+
     private String availability;
 
     private String icon;

@@ -30,9 +30,11 @@ public class ServiceCatalogServiceImpl implements ServiceCatalogService {
                         service.getName(),
                         service.getDescription(),
                         service.getCategory(),
+                        service.getSubCategory(),
                         service.getPrice(),
                         service.getPricingType(),
                         service.getAvailability(),
+                        service.getIcon(),
                         service.getLevel(),
                         service.getSubject(),
                         new ProviderInfo(
@@ -53,9 +55,11 @@ public class ServiceCatalogServiceImpl implements ServiceCatalogService {
                         service.getName(),
                         service.getDescription(),
                         service.getCategory(),
+                        service.getSubCategory(),
                         service.getPrice(),
                         service.getPricingType(),
                         service.getAvailability(),
+                        service.getIcon(),
                         service.getLevel(),
                         service.getSubject(),
                         new ProviderInfo(
@@ -88,6 +92,9 @@ public class ServiceCatalogServiceImpl implements ServiceCatalogService {
         if (request.getDescription() != null) {
             serviceCatalog.setDescription(request.getDescription());
         }
+        if (request.getSubCategory() != null) {
+            serviceCatalog.setSubCategory(request.getSubCategory());
+        }
         if (request.getAvailability() != null) {
             serviceCatalog.setAvailability(request.getAvailability());
         }
@@ -102,17 +109,18 @@ public class ServiceCatalogServiceImpl implements ServiceCatalogService {
         }
 
         // Save and return the entity
-        var createdService =  serviceRepository.save(serviceCatalog);
+        var createdService = serviceRepository.save(serviceCatalog);
 
         return new ServiceCatalogResponse(
-
                 createdService.getServiceId(),
                 createdService.getName(),
                 createdService.getDescription(),
                 createdService.getCategory(),
+                createdService.getSubCategory(),
                 createdService.getPrice(),
                 createdService.getPricingType(),
                 createdService.getAvailability(),
+                createdService.getIcon(),
                 createdService.getLevel(),
                 createdService.getSubject(),
                 new ProviderInfo(
@@ -144,25 +152,26 @@ public class ServiceCatalogServiceImpl implements ServiceCatalogService {
 
         if (request.getName() != null) existing.setName(request.getName());
         if (request.getDescription() != null) existing.setDescription(request.getDescription());
-        if(request.getPricingType() != null) existing.setPricingType(request.getPricingType());
+        if (request.getPricingType() != null) existing.setPricingType(request.getPricingType());
         if (request.getCategory() != null) existing.setCategory(request.getCategory());
+        if (request.getSubCategory() != null) existing.setSubCategory(request.getSubCategory());
         if (request.getPrice() != null) existing.setPrice(request.getPrice());
         if (request.getAvailability() != null) existing.setAvailability(request.getAvailability());
         if (request.getIcon() != null) existing.setIcon(request.getIcon());
-        if(request.getLevel() != null) existing.setLevel(request.getLevel());
-        if(request.getSubject() != null) existing.setSubject(request.getSubject());
+        if (request.getLevel() != null) existing.setLevel(request.getLevel());
+        if (request.getSubject() != null) existing.setSubject(request.getSubject());
 
-
-        var updatedService =  serviceRepository.save(existing);
+        var updatedService = serviceRepository.save(existing);
         return new ServiceCatalogResponse(
-
                 updatedService.getServiceId(),
                 updatedService.getName(),
                 updatedService.getDescription(),
                 updatedService.getCategory(),
+                updatedService.getSubCategory(),
                 updatedService.getPrice(),
                 updatedService.getPricingType(),
                 updatedService.getAvailability(),
+                updatedService.getIcon(),
                 updatedService.getLevel(),
                 updatedService.getSubject(),
                 new ProviderInfo(

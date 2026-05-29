@@ -14,6 +14,7 @@ public class NewServiceRequest {
     private Integer providerId;
     private String description;
     private String category;
+    private String subCategory;
     private String pricingType;
     private Double price;
     private String availability;

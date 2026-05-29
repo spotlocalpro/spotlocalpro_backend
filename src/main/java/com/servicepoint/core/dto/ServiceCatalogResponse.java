@@ -5,11 +5,12 @@ public record ServiceCatalogResponse(
         String name,
         String description,
         String category,
+        String subCategory,
         Double price,
         String pricingType,
         String availability,
+        String icon,
         String level,
         String subject,
         ProviderInfo provider
-
 ) {}
