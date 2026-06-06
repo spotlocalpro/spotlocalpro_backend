@@ -28,4 +28,14 @@ public interface BookingNotificationService {
      * Notification to the customer that their booking request was declined.
      */
     void sendDeclineNotificationToCustomer(Booking booking);
+
+    /**
+     * Notification to the customer that the service has been completed (ask for review).
+     */
+    void sendBookingCompletedToCustomer(Booking booking);
+
+    /**
+     * Notification to the provider that the booking has been marked as completed.
+     */
+    void sendBookingCompletedToProvider(Booking booking);
 }

@@ -177,7 +177,8 @@ public class ProviderRegistrationService {
         registrationRepository.save(registration);
 
         // Notify provider
-        emailService.sendProviderApprovalEmail(registration.getEmail(), registration.getFirstName());
+        String approvalLang = user.getPreferredLanguage() != null ? user.getPreferredLanguage() : "en";
+        emailService.sendProviderApprovalEmail(registration.getEmail(), registration.getFirstName(), approvalLang);
 
         return user;
     }
@@ -201,7 +202,10 @@ public class ProviderRegistrationService {
         registrationRepository.save(registration);
 
         // Notify provider
-        emailService.sendProviderRejectionEmail(registration.getEmail(), registration.getFirstName(), reason);
+        String rejectionLang = userRepository.findByEmail(registration.getEmail())
+                .map(u -> u.getPreferredLanguage() != null ? u.getPreferredLanguage() : "en")
+                .orElse("en");
+        emailService.sendProviderRejectionEmail(registration.getEmail(), registration.getFirstName(), reason, rejectionLang);
     }
 
     /**

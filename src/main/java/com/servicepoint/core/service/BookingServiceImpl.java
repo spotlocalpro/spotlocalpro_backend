@@ -137,7 +137,17 @@ public class BookingServiceImpl implements BookingService {
             existing.setTotalPrice(request.getTotalPrice());
         }
 
-        return bookingRepository.save(existing);
+        boolean becomingCompleted = "completed".equalsIgnoreCase(request.getStatus())
+                && !"completed".equalsIgnoreCase(existing.getStatus());
+
+        Booking saved = bookingRepository.save(existing);
+
+        if (becomingCompleted) {
+            bookingNotificationService.sendBookingCompletedToCustomer(saved);
+            bookingNotificationService.sendBookingCompletedToProvider(saved);
+        }
+
+        return saved;
     }
 
     @Override

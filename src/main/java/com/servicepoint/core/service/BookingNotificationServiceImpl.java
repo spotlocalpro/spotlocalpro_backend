@@ -35,6 +35,9 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
                 : frontendBaseUrl;
     }
 
+    // -------------------------------------------------------------------------
+    //  New booking request → PROVIDER
+    // -------------------------------------------------------------------------
     @Override
     @Async
     public void sendNewBookingRequestToProvider(Booking booking) {
@@ -47,15 +50,16 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
                 return;
             }
 
+            boolean es = isEs(provider);
             String serviceName = booking.getService() != null ? booking.getService().getName() : "Service";
-            String category = booking.getService() != null ? booking.getService().getCategory() : "";
+            String category    = booking.getService() != null ? booking.getService().getCategory() : "";
             String pricingType = booking.getService() != null ? booking.getService().getPricingType() : "";
-            String priceText = formatPrice(booking.getTotalPrice(), pricingType);
+            String priceText   = formatPrice(booking.getTotalPrice(), pricingType);
             String dateTimeText = formatDateTime(booking);
-            String notes = (booking.getNotes() == null || booking.getNotes().isBlank())
-                    ? "None" : escape(booking.getNotes());
+            String notes       = (booking.getNotes() == null || booking.getNotes().isBlank())
+                    ? (es ? "Ninguna" : "None") : escape(booking.getNotes());
             String customerDisplay = escape(firstNameOrUsername(customer));
-            String distanceText = formatDistance(provider, customer);
+            String distanceText    = formatDistance(provider, customer);
 
             String approveToken = tokenService.generateToken(
                     booking.getBookingId(), BookingActionTokenService.ACTION_APPROVE);
@@ -67,13 +71,15 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
             String declineUrl = frontendBaseUrl + "/api/bookings/" + booking.getBookingId()
                     + "/decline?token=" + declineToken;
 
-            String subject = "New Booking Request — " + serviceName;
-            String body = buildNewRequestHtml(
-                    escape(firstNameOrUsername(provider)),
-                    customerDisplay, distanceText,
-                    escape(serviceName), escape(category),
-                    dateTimeText, priceText, notes,
-                    approveUrl, declineUrl);
+            String subject = es
+                    ? "Nueva Solicitud de Reserva — " + serviceName
+                    : "New Booking Request — " + serviceName;
+
+            String body = es
+                    ? buildNewRequestHtmlEs(escape(firstNameOrUsername(provider)), customerDisplay, distanceText,
+                            escape(serviceName), escape(category), dateTimeText, priceText, notes, approveUrl, declineUrl)
+                    : buildNewRequestHtmlEn(escape(firstNameOrUsername(provider)), customerDisplay, distanceText,
+                            escape(serviceName), escape(category), dateTimeText, priceText, notes, approveUrl, declineUrl);
 
             emailService.sendEmail(provider.getEmail(), subject, body);
             log.info("Sent new booking request email for booking {} to provider {}",
@@ -87,6 +93,9 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
         }
     }
 
+    // -------------------------------------------------------------------------
+    //  Approval follow-up (customer contact info) → PROVIDER
+    // -------------------------------------------------------------------------
     @Override
     @Async
     public void sendApprovalFollowUpToProvider(Booking booking) {
@@ -95,18 +104,23 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
             User customer = booking.getCustomer();
             if (provider == null || provider.getEmail() == null) return;
 
-            String serviceName = booking.getService() != null ? booking.getService().getName() : "Service";
+            boolean es = isEs(provider);
+            String serviceName  = booking.getService() != null ? booking.getService().getName() : "Service";
             String dateTimeText = formatDateTime(booking);
-            String phone = (customer != null && customer.getPhoneNumber() != null)
-                    ? escape(customer.getPhoneNumber()) : "Not provided";
-            String location = (customer != null && customer.getLocation() != null)
-                    ? escape(customer.getLocation()) : "Not provided";
+            String phone     = (customer != null && customer.getPhoneNumber() != null)
+                    ? escape(customer.getPhoneNumber()) : (es ? "No proporcionado" : "Not provided");
+            String location  = (customer != null && customer.getLocation() != null)
+                    ? escape(customer.getLocation()) : (es ? "No proporcionado" : "Not provided");
 
-            String subject = "Booking Approved — Customer Contact Details";
-            String body = buildApprovalFollowUpHtml(
-                    escape(firstNameOrUsername(provider)),
-                    escape(firstNameOrUsername(customer)),
-                    phone, location, dateTimeText, escape(serviceName));
+            String subject = es
+                    ? "Reserva Aprobada — Datos de Contacto del Cliente"
+                    : "Booking Approved — Customer Contact Details";
+
+            String body = es
+                    ? buildApprovalFollowUpHtmlEs(escape(firstNameOrUsername(provider)),
+                            escape(firstNameOrUsername(customer)), phone, location, dateTimeText, escape(serviceName))
+                    : buildApprovalFollowUpHtmlEn(escape(firstNameOrUsername(provider)),
+                            escape(firstNameOrUsername(customer)), phone, location, dateTimeText, escape(serviceName));
 
             emailService.sendEmail(provider.getEmail(), subject, body);
             log.info("Sent approval follow-up email for booking {} to provider {}",
@@ -120,6 +134,9 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
         }
     }
 
+    // -------------------------------------------------------------------------
+    //  Booking confirmed → CUSTOMER
+    // -------------------------------------------------------------------------
     @Override
     @Async
     public void sendApprovalNotificationToCustomer(Booking booking) {
@@ -128,20 +145,23 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
             User provider = booking.getProvider();
             if (customer == null || customer.getEmail() == null) return;
 
-            String serviceName = booking.getService() != null ? booking.getService().getName() : "Service";
-            String providerName = provider != null ? firstNameOrUsername(provider) : "Your provider";
+            boolean es = isEs(customer);
+            String serviceName  = booking.getService() != null ? booking.getService().getName() : "Service";
+            String providerName = provider != null ? firstNameOrUsername(provider) : (es ? "Tu proveedor" : "Your provider");
             String dateTimeText = formatDateTime(booking);
-            String priceText = booking.getTotalPrice() != null
-                    ? String.format(Locale.US, "$%.2f", booking.getTotalPrice())
-                    : "TBD";
+            String priceText    = booking.getTotalPrice() != null
+                    ? String.format(Locale.US, "$%.2f", booking.getTotalPrice()) : "TBD";
+            String bookingLink  = frontendBaseUrl + "/bookings/" + booking.getBookingId();
 
-            String subject = "Your Booking Request Was Approved!";
-            String body = buildApprovalCustomerHtml(
-                    escape(firstNameOrUsername(customer)),
-                    escape(providerName),
-                    escape(serviceName),
-                    dateTimeText,
-                    priceText);
+            String subject = es
+                    ? "¡Tu Solicitud de Reserva fue Aprobada! - SpotLocalPro"
+                    : "Your Booking Request Was Approved! - SpotLocalPro";
+
+            String body = es
+                    ? buildApprovalCustomerHtmlEs(escape(firstNameOrUsername(customer)),
+                            escape(providerName), escape(serviceName), dateTimeText, priceText, bookingLink)
+                    : buildApprovalCustomerHtmlEn(escape(firstNameOrUsername(customer)),
+                            escape(providerName), escape(serviceName), dateTimeText, priceText, bookingLink);
 
             emailService.sendEmail(customer.getEmail(), subject, body);
             log.info("Sent approval notification for booking {} to customer {}",
@@ -155,6 +175,9 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
         }
     }
 
+    // -------------------------------------------------------------------------
+    //  Booking declined → CUSTOMER
+    // -------------------------------------------------------------------------
     @Override
     @Async
     public void sendDeclineNotificationToCustomer(Booking booking) {
@@ -163,16 +186,21 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
             User provider = booking.getProvider();
             if (customer == null || customer.getEmail() == null) return;
 
-            String serviceName = booking.getService() != null ? booking.getService().getName() : "Service";
-            String providerName = provider != null ? firstNameOrUsername(provider) : "The provider";
+            boolean es = isEs(customer);
+            String serviceName  = booking.getService() != null ? booking.getService().getName() : "Service";
+            String providerName = provider != null ? firstNameOrUsername(provider) : (es ? "El proveedor" : "The provider");
             String dateTimeText = formatDateTime(booking);
+            String searchLink   = frontendBaseUrl + "/search";
 
-            String subject = "Update on Your Booking Request";
-            String body = buildDeclineCustomerHtml(
-                    escape(firstNameOrUsername(customer)),
-                    escape(providerName),
-                    escape(serviceName),
-                    dateTimeText);
+            String subject = es
+                    ? "Actualización sobre tu Solicitud de Reserva - SpotLocalPro"
+                    : "Update on Your Booking Request - SpotLocalPro";
+
+            String body = es
+                    ? buildDeclineCustomerHtmlEs(escape(firstNameOrUsername(customer)),
+                            escape(providerName), escape(serviceName), dateTimeText, searchLink)
+                    : buildDeclineCustomerHtmlEn(escape(firstNameOrUsername(customer)),
+                            escape(providerName), escape(serviceName), dateTimeText, searchLink);
 
             emailService.sendEmail(customer.getEmail(), subject, body);
             log.info("Sent decline notification for booking {} to customer {}",
@@ -184,6 +212,94 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
             log.error("Unexpected error sending decline notification for booking {}",
                     booking.getBookingId(), e);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    //  Booking completed → CUSTOMER (review request)
+    // -------------------------------------------------------------------------
+    @Override
+    @Async
+    public void sendBookingCompletedToCustomer(Booking booking) {
+        try {
+            User customer = booking.getCustomer();
+            User provider = booking.getProvider();
+            if (customer == null || customer.getEmail() == null) return;
+
+            boolean es = isEs(customer);
+            String serviceName  = booking.getService() != null ? booking.getService().getName() : "Service";
+            String providerName = provider != null ? firstNameOrUsername(provider) : (es ? "Tu proveedor" : "Your provider");
+            String priceText    = booking.getTotalPrice() != null
+                    ? String.format(Locale.US, "$%.2f", booking.getTotalPrice()) : "TBD";
+            String feedbackLink = frontendBaseUrl + "/bookings/" + booking.getBookingId() + "/review";
+
+            String subject = es
+                    ? "Servicio Completado — ¡Deja tu Reseña! - SpotLocalPro"
+                    : "Service Completed — Leave a Review! - SpotLocalPro";
+
+            String body = es
+                    ? buildCompletedCustomerHtmlEs(escape(firstNameOrUsername(customer)),
+                            escape(serviceName), escape(providerName), priceText, feedbackLink)
+                    : buildCompletedCustomerHtmlEn(escape(firstNameOrUsername(customer)),
+                            escape(serviceName), escape(providerName), priceText, feedbackLink);
+
+            emailService.sendEmail(customer.getEmail(), subject, body);
+            log.info("Sent booking-completed email for booking {} to customer {}",
+                    booking.getBookingId(), customer.getEmail());
+        } catch (MessagingException e) {
+            log.error("Failed to send booking-completed email to customer for booking {}: {}",
+                    booking.getBookingId(), e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending booking-completed email to customer for booking {}",
+                    booking.getBookingId(), e);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    //  Booking completed → PROVIDER (payment confirmation)
+    // -------------------------------------------------------------------------
+    @Override
+    @Async
+    public void sendBookingCompletedToProvider(Booking booking) {
+        try {
+            User provider = booking.getProvider();
+            User customer = booking.getCustomer();
+            if (provider == null || provider.getEmail() == null) return;
+
+            boolean es = isEs(provider);
+            String serviceName   = booking.getService() != null ? booking.getService().getName() : "Service";
+            String customerName  = customer != null ? firstNameOrUsername(customer) : (es ? "el cliente" : "the customer");
+            String priceText     = booking.getTotalPrice() != null
+                    ? String.format(Locale.US, "$%.2f", booking.getTotalPrice()) : "TBD";
+            String dashboardLink = frontendBaseUrl + "/dashboard";
+
+            String subject = es
+                    ? "Reserva Completada - SpotLocalPro"
+                    : "Booking Completed - SpotLocalPro";
+
+            String body = es
+                    ? buildCompletedProviderHtmlEs(escape(firstNameOrUsername(provider)),
+                            booking.getBookingId(), escape(serviceName), escape(customerName), priceText, dashboardLink)
+                    : buildCompletedProviderHtmlEn(escape(firstNameOrUsername(provider)),
+                            booking.getBookingId(), escape(serviceName), escape(customerName), priceText, dashboardLink);
+
+            emailService.sendEmail(provider.getEmail(), subject, body);
+            log.info("Sent booking-completed email for booking {} to provider {}",
+                    booking.getBookingId(), provider.getEmail());
+        } catch (MessagingException e) {
+            log.error("Failed to send booking-completed email to provider for booking {}: {}",
+                    booking.getBookingId(), e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending booking-completed email to provider for booking {}",
+                    booking.getBookingId(), e);
+        }
+    }
+
+    // =========================================================================
+    //  Helpers
+    // =========================================================================
+
+    private static boolean isEs(User u) {
+        return u != null && "es".equalsIgnoreCase(u.getPreferredLanguage());
     }
 
     private static String firstNameOrUsername(User u) {
@@ -235,195 +351,364 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
                 .replace("'", "&#39;");
     }
 
-    // =====================================================================
-    //  SIMPLIFIED EMAIL TEMPLATES - OPTIMIZED FOR GMAIL
-    // =====================================================================
+    private static String simpleRow(String label, String value) {
+        return "<tr><td style='padding:8px 0;color:#6b7280;font-size:14px;'>" + label + "</td>"
+                + "<td style='padding:8px 0;color:#1f2937;font-size:14px;font-weight:600;text-align:right;'>" + value + "</td></tr>";
+    }
 
-    private String buildNewRequestHtml(String providerName, String customerName, String distance,
-                                       String serviceName, String category, String dateTime,
-                                       String price, String notes,
-                                       String approveUrl, String declineUrl) {
+    // =========================================================================
+    //  New booking request templates
+    // =========================================================================
+
+    private String buildNewRequestHtmlEn(String providerName, String customerName, String distance,
+                                         String serviceName, String category, String dateTime,
+                                         String price, String notes,
+                                         String approveUrl, String declineUrl) {
         return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
                 + "<div style='background:#fb923c;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
                 + "<div style='font-size:42px;margin-bottom:8px;'>🔔</div>"
                 + "<h1 style='color:white;margin:0;font-size:26px;'>New Booking Request!</h1>"
                 + "<p style='color:#fff7ed;margin:6px 0 0 0;font-size:15px;'>A customer wants to book your service</p>"
                 + "</div>"
-
                 + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
                 + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hi <strong>" + providerName + "</strong>,</p>"
                 + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>You have a new booking request on SpotLocalPro!</p>"
-
                 + "<div style='background:#fffbeb;border:2px solid #fbbf24;border-radius:10px;padding:20px;margin:20px 0;'>"
                 + "<h3 style='color:#92400e;margin:0 0 14px 0;font-size:15px;'>👤 CUSTOMER DETAILS</h3>"
-                + "<table style='width:100%;'>"
-                + simpleRow("Customer", customerName)
-                + simpleRow("Distance", distance)
-                + "</table></div>"
-
+                + "<table style='width:100%;'>" + simpleRow("Customer", customerName) + simpleRow("Distance", distance) + "</table></div>"
                 + "<div style='background:#f0f9ff;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:20px 0;'>"
                 + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 BOOKING DETAILS</h3>"
                 + "<table style='width:100%;'>"
                 + simpleRow("Service", serviceName + (category.isEmpty() ? "" : " (" + category + ")"))
-                + simpleRow("Requested", dateTime)
-                + simpleRow("Price", price)
-                + simpleRow("Notes", notes)
+                + simpleRow("Requested", dateTime) + simpleRow("Price", price) + simpleRow("Notes", notes)
                 + "</table></div>"
-
                 + "<div style='background:#fef2f2;border-left:3px solid #f87171;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
-                + "<p style='color:#991b1b;margin:0;font-size:13px;'>"
-                + "🔒 <strong>Privacy:</strong> Approve to view customer's phone and location."
-                + "</p></div>"
-
+                + "<p style='color:#991b1b;margin:0;font-size:13px;'>🔒 <strong>Privacy:</strong> Approve to view customer's phone and location.</p></div>"
                 + "<div style='text-align:center;margin:28px 0;padding:20px;background:#f9fafb;border-radius:10px;'>"
                 + "<p style='color:#374151;font-size:15px;font-weight:600;margin:0 0 16px 0;'>Choose your action:</p>"
-
-                + "<table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom:10px;'>"
-                + "<tr><td align='center'>"
-                + "<a href='" + approveUrl + "' style='background:#16a34a;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>"
-                + "✅ APPROVE</a>"
+                + "<table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom:10px;'><tr><td align='center'>"
+                + "<a href='" + approveUrl + "' style='background:#16a34a;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>✅ APPROVE</a>"
                 + "</td></tr></table>"
-
-                + "<table width='100%' cellpadding='0' cellspacing='0'>"
-                + "<tr><td align='center'>"
-                + "<a href='" + declineUrl + "' style='background:#dc2626;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>"
-                + "❌ DECLINE</a>"
+                + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center'>"
+                + "<a href='" + declineUrl + "' style='background:#dc2626;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>❌ DECLINE</a>"
                 + "</td></tr></table>"
-
                 + "<p style='color:#9ca3af;font-size:12px;margin:16px 0 0 0;'>Links expire in 48 hours</p>"
                 + "</div>"
-
                 + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
-                + "<p style='color:#9ca3af;font-size:13px;margin:0 0 6px 0;'>Thank you for being a valued provider</p>"
                 + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>The SpotLocalPro Team</p>"
                 + "</div></div></body></html>";
     }
 
-    private String buildApprovalFollowUpHtml(String providerName, String customerName,
-                                             String phone, String location,
-                                             String dateTime, String serviceName) {
+    private String buildNewRequestHtmlEs(String providerName, String customerName, String distance,
+                                         String serviceName, String category, String dateTime,
+                                         String price, String notes,
+                                         String approveUrl, String declineUrl) {
+        return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
+                + "<div style='background:#fb923c;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
+                + "<div style='font-size:42px;margin-bottom:8px;'>🔔</div>"
+                + "<h1 style='color:white;margin:0;font-size:26px;'>¡Nueva Solicitud de Reserva!</h1>"
+                + "<p style='color:#fff7ed;margin:6px 0 0 0;font-size:15px;'>Un cliente quiere reservar tu servicio</p>"
+                + "</div>"
+                + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
+                + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hola <strong>" + providerName + "</strong>,</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>¡Tienes una nueva solicitud de reserva en SpotLocalPro!</p>"
+                + "<div style='background:#fffbeb;border:2px solid #fbbf24;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#92400e;margin:0 0 14px 0;font-size:15px;'>👤 DATOS DEL CLIENTE</h3>"
+                + "<table style='width:100%;'>" + simpleRow("Cliente", customerName) + simpleRow("Distancia", distance) + "</table></div>"
+                + "<div style='background:#f0f9ff;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 DETALLES DE LA RESERVA</h3>"
+                + "<table style='width:100%;'>"
+                + simpleRow("Servicio", serviceName + (category.isEmpty() ? "" : " (" + category + ")"))
+                + simpleRow("Solicitado", dateTime) + simpleRow("Precio", price) + simpleRow("Notas", notes)
+                + "</table></div>"
+                + "<div style='background:#fef2f2;border-left:3px solid #f87171;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
+                + "<p style='color:#991b1b;margin:0;font-size:13px;'>🔒 <strong>Privacidad:</strong> Aprueba para ver el teléfono y ubicación del cliente.</p></div>"
+                + "<div style='text-align:center;margin:28px 0;padding:20px;background:#f9fafb;border-radius:10px;'>"
+                + "<p style='color:#374151;font-size:15px;font-weight:600;margin:0 0 16px 0;'>Elige tu acción:</p>"
+                + "<table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom:10px;'><tr><td align='center'>"
+                + "<a href='" + approveUrl + "' style='background:#16a34a;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>✅ APROBAR</a>"
+                + "</td></tr></table>"
+                + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center'>"
+                + "<a href='" + declineUrl + "' style='background:#dc2626;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>❌ RECHAZAR</a>"
+                + "</td></tr></table>"
+                + "<p style='color:#9ca3af;font-size:12px;margin:16px 0 0 0;'>Los enlaces expiran en 48 horas</p>"
+                + "</div>"
+                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>El equipo de SpotLocalPro</p>"
+                + "</div></div></body></html>";
+    }
+
+    // =========================================================================
+    //  Approval follow-up templates (provider gets customer contact info)
+    // =========================================================================
+
+    private String buildApprovalFollowUpHtmlEn(String providerName, String customerName,
+                                               String phone, String location,
+                                               String dateTime, String serviceName) {
         return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
                 + "<div style='background:#16a34a;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
                 + "<div style='font-size:42px;margin-bottom:8px;'>✅</div>"
                 + "<h1 style='color:white;margin:0;font-size:26px;'>Booking Approved!</h1>"
                 + "<p style='color:#f0fdf4;margin:6px 0 0 0;font-size:15px;'>Customer contact details</p>"
                 + "</div>"
-
                 + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
                 + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hi <strong>" + providerName + "</strong>,</p>"
                 + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>You approved the booking. Here are the details:</p>"
-
                 + "<div style='background:#dcfce7;border:2px solid #86efac;border-radius:10px;padding:20px;margin:20px 0;'>"
                 + "<h3 style='color:#15803d;margin:0 0 14px 0;font-size:15px;'>📞 CONTACT INFO</h3>"
-                + "<table style='width:100%;'>"
-                + simpleRow("Customer", customerName)
-                + simpleRow("Phone", phone)
-                + simpleRow("Location", location)
-                + "</table></div>"
-
+                + "<table style='width:100%;'>" + simpleRow("Customer", customerName) + simpleRow("Phone", phone) + simpleRow("Location", location) + "</table></div>"
                 + "<div style='background:#f0f9ff;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:20px 0;'>"
                 + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 SERVICE DETAILS</h3>"
-                + "<table style='width:100%;'>"
-                + simpleRow("Service", serviceName)
-                + simpleRow("Scheduled", dateTime)
-                + "</table></div>"
-
+                + "<table style='width:100%;'>" + simpleRow("Service", serviceName) + simpleRow("Scheduled", dateTime) + "</table></div>"
                 + "<div style='background:#fffbeb;border-left:3px solid #f59e0b;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
                 + "<p style='color:#92400e;margin:0 0 6px 0;font-size:14px;font-weight:700;'>⏭️ What's Next?</p>"
-                + "<p style='color:#78350f;margin:0;font-size:13px;'>Contact the customer to confirm the appointment.</p>"
-                + "</div>"
-
+                + "<p style='color:#78350f;margin:0;font-size:13px;'>Contact the customer to confirm the appointment.</p></div>"
                 + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
-                + "<p style='color:#9ca3af;font-size:13px;margin:0 0 6px 0;'>Good luck with your service!</p>"
                 + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>The SpotLocalPro Team</p>"
                 + "</div></div></body></html>";
     }
 
-    private String buildApprovalCustomerHtml(String customerName, String providerName,
-                                             String serviceName, String dateTime, String price) {
+    private String buildApprovalFollowUpHtmlEs(String providerName, String customerName,
+                                               String phone, String location,
+                                               String dateTime, String serviceName) {
+        return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
+                + "<div style='background:#16a34a;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
+                + "<div style='font-size:42px;margin-bottom:8px;'>✅</div>"
+                + "<h1 style='color:white;margin:0;font-size:26px;'>¡Reserva Aprobada!</h1>"
+                + "<p style='color:#f0fdf4;margin:6px 0 0 0;font-size:15px;'>Datos de contacto del cliente</p>"
+                + "</div>"
+                + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
+                + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hola <strong>" + providerName + "</strong>,</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Aprobaste la reserva. Aquí están los detalles:</p>"
+                + "<div style='background:#dcfce7;border:2px solid #86efac;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#15803d;margin:0 0 14px 0;font-size:15px;'>📞 DATOS DE CONTACTO</h3>"
+                + "<table style='width:100%;'>" + simpleRow("Cliente", customerName) + simpleRow("Teléfono", phone) + simpleRow("Ubicación", location) + "</table></div>"
+                + "<div style='background:#f0f9ff;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 DETALLES DEL SERVICIO</h3>"
+                + "<table style='width:100%;'>" + simpleRow("Servicio", serviceName) + simpleRow("Programado", dateTime) + "</table></div>"
+                + "<div style='background:#fffbeb;border-left:3px solid #f59e0b;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
+                + "<p style='color:#92400e;margin:0 0 6px 0;font-size:14px;font-weight:700;'>⏭️ ¿Qué sigue?</p>"
+                + "<p style='color:#78350f;margin:0;font-size:13px;'>Contacta al cliente para confirmar la cita.</p></div>"
+                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>El equipo de SpotLocalPro</p>"
+                + "</div></div></body></html>";
+    }
+
+    // =========================================================================
+    //  Booking confirmed templates (customer)
+    // =========================================================================
+
+    private String buildApprovalCustomerHtmlEn(String customerName, String providerName,
+                                               String serviceName, String dateTime,
+                                               String price, String bookingLink) {
         return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
                 + "<div style='background:#10b981;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
                 + "<div style='font-size:42px;margin-bottom:8px;'>🎉</div>"
                 + "<h1 style='color:white;margin:0;font-size:26px;'>Booking Confirmed!</h1>"
                 + "<p style='color:#f0fdf4;margin:6px 0 0 0;font-size:15px;'>Your request has been approved</p>"
                 + "</div>"
-
                 + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
                 + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hi <strong>" + customerName + "</strong>,</p>"
-                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Great news! <strong style='color:#10b981;'>" + providerName
-                + "</strong> has accepted your booking!</p>"
-
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Great news! <strong style='color:#10b981;'>" + providerName + "</strong> has accepted your booking!</p>"
                 + "<div style='background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:20px;margin:20px 0;'>"
                 + "<h3 style='color:#15803d;margin:0 0 14px 0;font-size:15px;'>📋 BOOKING DETAILS</h3>"
                 + "<table style='width:100%;'>"
-                + simpleRow("Service", serviceName)
-                + simpleRow("Date & Time", dateTime)
-                + simpleRow("Total Price", "<span style='color:#10b981;font-weight:700;font-size:17px;'>" + price + "</span>")
+                + simpleRow("Service", serviceName) + simpleRow("Provider", providerName)
+                + simpleRow("Date &amp; Time", dateTime)
+                + simpleRow("Total", "<span style='color:#10b981;font-weight:700;font-size:17px;'>" + price + "</span>")
                 + "</table></div>"
-
-                + "<div style='background:#fffbeb;border-left:3px solid #f59e0b;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
-                + "<p style='color:#92400e;margin:0 0 6px 0;font-size:14px;font-weight:700;'>✨ What's Next?</p>"
-                + "<p style='color:#78350f;margin:0;font-size:13px;'>Your provider will contact you shortly to confirm details.</p>"
-                + "</div>"
-
-                + "<div style='background:#fef3c7;border:2px solid #fbbf24;padding:18px;border-radius:10px;margin:20px 0;text-align:center;'>"
-                + "<div style='font-size:28px;margin-bottom:6px;'>💬</div>"
-                + "<p style='color:#92400e;margin:0 0 6px 0;font-size:14px;font-weight:700;'>Questions?</p>"
-                + "<a href='mailto:hello@spotlocalpro.com' style='display:inline-block;margin-top:10px;background:#f59e0b;color:white;padding:9px 22px;text-decoration:none;border-radius:7px;font-weight:600;font-size:13px;'>Contact Support</a>"
-                + "</div>"
-
+                + "<div style='text-align:center;margin:20px 0;'>"
+                + "<a href='" + bookingLink + "' style='background:#10b981;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600;display:inline-block;'>View Booking</a></div>"
                 + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
-                + "<p style='color:#9ca3af;font-size:13px;margin:0 0 6px 0;'>Thank you for choosing SpotLocalPro</p>"
                 + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>The SpotLocalPro Team</p>"
                 + "</div></div></body></html>";
     }
 
-    private String buildDeclineCustomerHtml(String customerName, String providerName,
-                                            String serviceName, String dateTime) {
+    private String buildApprovalCustomerHtmlEs(String customerName, String providerName,
+                                               String serviceName, String dateTime,
+                                               String price, String bookingLink) {
+        return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
+                + "<div style='background:#10b981;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
+                + "<div style='font-size:42px;margin-bottom:8px;'>🎉</div>"
+                + "<h1 style='color:white;margin:0;font-size:26px;'>¡Reserva Confirmada!</h1>"
+                + "<p style='color:#f0fdf4;margin:6px 0 0 0;font-size:15px;'>Tu solicitud fue aprobada</p>"
+                + "</div>"
+                + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
+                + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hola <strong>" + customerName + "</strong>,</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>¡Buenas noticias! <strong style='color:#10b981;'>" + providerName + "</strong> ha aceptado tu reserva.</p>"
+                + "<div style='background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#15803d;margin:0 0 14px 0;font-size:15px;'>📋 DETALLES DE LA RESERVA</h3>"
+                + "<table style='width:100%;'>"
+                + simpleRow("Servicio", serviceName) + simpleRow("Proveedor", providerName)
+                + simpleRow("Fecha y Hora", dateTime)
+                + simpleRow("Total", "<span style='color:#10b981;font-weight:700;font-size:17px;'>" + price + "</span>")
+                + "</table></div>"
+                + "<div style='text-align:center;margin:20px 0;'>"
+                + "<a href='" + bookingLink + "' style='background:#10b981;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600;display:inline-block;'>Ver Reserva</a></div>"
+                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>El equipo de SpotLocalPro</p>"
+                + "</div></div></body></html>";
+    }
+
+    // =========================================================================
+    //  Booking declined templates (customer)
+    // =========================================================================
+
+    private String buildDeclineCustomerHtmlEn(String customerName, String providerName,
+                                              String serviceName, String dateTime, String searchLink) {
         return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
                 + "<div style='background:#64748b;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
                 + "<div style='font-size:42px;margin-bottom:8px;'>📬</div>"
                 + "<h1 style='color:white;margin:0;font-size:26px;'>Booking Update</h1>"
                 + "<p style='color:#e2e8f0;margin:6px 0 0 0;font-size:15px;'>About your request</p>"
                 + "</div>"
-
                 + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
                 + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hi <strong>" + customerName + "</strong>,</p>"
-                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Unfortunately, <strong>" + providerName
-                + "</strong> is unable to accept your booking at this time.</p>"
-
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Unfortunately, <strong>" + providerName + "</strong> is unable to accept your booking at this time.</p>"
                 + "<div style='background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;padding:20px;margin:20px 0;'>"
                 + "<h3 style='color:#475569;margin:0 0 14px 0;font-size:15px;'>📋 ORIGINAL REQUEST</h3>"
-                + "<table style='width:100%;'>"
-                + simpleRow("Service", serviceName)
-                + simpleRow("Requested For", dateTime)
-                + "</table></div>"
-
-                + "<div style='background:#fef3c7;border-left:3px solid #f59e0b;padding:18px;border-radius:6px;margin:20px 0;'>"
+                + "<table style='width:100%;'>" + simpleRow("Service", serviceName) + simpleRow("Requested For", dateTime) + "</table></div>"
+                + "<div style='background:#fef3c7;border-left:3px solid #f59e0b;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
                 + "<p style='color:#92400e;margin:0 0 6px 0;font-size:14px;font-weight:700;'>🔍 Don't worry!</p>"
-                + "<p style='color:#78350f;margin:0;font-size:13px;'>Many other providers are available on SpotLocalPro.</p>"
-                + "</div>"
-
-                + "<div style='background:#dbeafe;border:2px solid #60a5fa;padding:18px;border-radius:10px;margin:20px 0;text-align:center;'>"
-                + "<div style='font-size:28px;margin-bottom:6px;'>🤝</div>"
-                + "<p style='color:#1e40af;margin:0 0 6px 0;font-size:14px;font-weight:700;'>Need help?</p>"
-                + "<a href='mailto:hello@spotlocalpro.com' style='display:inline-block;background:#3b82f6;color:white;padding:9px 22px;text-decoration:none;border-radius:7px;font-weight:600;font-size:13px;margin-top:8px;'>Get Support</a>"
-                + "</div>"
-
+                + "<p style='color:#78350f;margin:0;font-size:13px;'>Many other providers are available on SpotLocalPro.</p></div>"
+                + "<div style='text-align:center;margin:20px 0;'>"
+                + "<a href='" + searchLink + "' style='background:#3b82f6;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600;display:inline-block;'>Find Another Provider</a></div>"
                 + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
-                + "<p style='color:#9ca3af;font-size:13px;margin:0 0 6px 0;'>We appreciate your understanding</p>"
                 + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>The SpotLocalPro Team</p>"
                 + "</div></div></body></html>";
     }
 
-    // Simple row helper - more compact
-    private static String simpleRow(String label, String value) {
-        return "<tr><td style='padding:8px 0;color:#6b7280;font-size:14px;'>" + label + "</td>"
-                + "<td style='padding:8px 0;color:#1f2937;font-size:14px;font-weight:600;text-align:right;'>" + value + "</td></tr>";
+    private String buildDeclineCustomerHtmlEs(String customerName, String providerName,
+                                              String serviceName, String dateTime, String searchLink) {
+        return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
+                + "<div style='background:#64748b;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
+                + "<div style='font-size:42px;margin-bottom:8px;'>📬</div>"
+                + "<h1 style='color:white;margin:0;font-size:26px;'>Actualización de Reserva</h1>"
+                + "<p style='color:#e2e8f0;margin:6px 0 0 0;font-size:15px;'>Sobre tu solicitud</p>"
+                + "</div>"
+                + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
+                + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hola <strong>" + customerName + "</strong>,</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Lamentablemente, <strong>" + providerName + "</strong> no puede aceptar tu reserva en este momento.</p>"
+                + "<div style='background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#475569;margin:0 0 14px 0;font-size:15px;'>📋 SOLICITUD ORIGINAL</h3>"
+                + "<table style='width:100%;'>" + simpleRow("Servicio", serviceName) + simpleRow("Solicitado Para", dateTime) + "</table></div>"
+                + "<div style='background:#fef3c7;border-left:3px solid #f59e0b;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
+                + "<p style='color:#92400e;margin:0 0 6px 0;font-size:14px;font-weight:700;'>🔍 ¡No te preocupes!</p>"
+                + "<p style='color:#78350f;margin:0;font-size:13px;'>Hay muchos otros proveedores disponibles en SpotLocalPro.</p></div>"
+                + "<div style='text-align:center;margin:20px 0;'>"
+                + "<a href='" + searchLink + "' style='background:#3b82f6;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600;display:inline-block;'>Buscar Otro Proveedor</a></div>"
+                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>El equipo de SpotLocalPro</p>"
+                + "</div></div></body></html>";
     }
 
-    private static String row(String label, String value) {
-        return "<tr><td style='padding:8px 0;color:#6b7280;font-size:14px;'>" + label + "</td>"
-                + "<td style='padding:8px 0;color:#1f2937;font-size:14px;'>" + value + "</td></tr>";
+    // =========================================================================
+    //  Booking completed templates (customer — review request)
+    // =========================================================================
+
+    private String buildCompletedCustomerHtmlEn(String customerName, String serviceName,
+                                                String providerName, String price, String feedbackLink) {
+        return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
+                + "<div style='background:#7c3aed;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
+                + "<div style='font-size:42px;margin-bottom:8px;'>⭐</div>"
+                + "<h1 style='color:white;margin:0;font-size:26px;'>Service Completed!</h1>"
+                + "<p style='color:#ede9fe;margin:6px 0 0 0;font-size:15px;'>How was your experience?</p>"
+                + "</div>"
+                + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
+                + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hi <strong>" + customerName + "</strong>,</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Your service has been completed!</p>"
+                + "<div style='background:#f5f3ff;border:2px solid #c4b5fd;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#6d28d9;margin:0 0 14px 0;font-size:15px;'>📋 SERVICE SUMMARY</h3>"
+                + "<table style='width:100%;'>"
+                + simpleRow("Service", serviceName) + simpleRow("Provider", providerName)
+                + simpleRow("Total", "<span style='color:#7c3aed;font-weight:700;font-size:17px;'>" + price + "</span>")
+                + "</table></div>"
+                + "<div style='background:#fef3c7;border-left:3px solid #f59e0b;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
+                + "<p style='color:#92400e;margin:0;font-size:13px;'>Your feedback helps other customers find great providers.</p></div>"
+                + "<div style='text-align:center;margin:24px 0;'>"
+                + "<a href='" + feedbackLink + "' style='background:#7c3aed;color:white;padding:14px 36px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>⭐ Leave a Review</a></div>"
+                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>The SpotLocalPro Team</p>"
+                + "</div></div></body></html>";
+    }
+
+    private String buildCompletedCustomerHtmlEs(String customerName, String serviceName,
+                                                String providerName, String price, String feedbackLink) {
+        return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
+                + "<div style='background:#7c3aed;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
+                + "<div style='font-size:42px;margin-bottom:8px;'>⭐</div>"
+                + "<h1 style='color:white;margin:0;font-size:26px;'>¡Servicio Completado!</h1>"
+                + "<p style='color:#ede9fe;margin:6px 0 0 0;font-size:15px;'>¿Cómo fue tu experiencia?</p>"
+                + "</div>"
+                + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
+                + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hola <strong>" + customerName + "</strong>,</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>¡Tu servicio ha sido completado!</p>"
+                + "<div style='background:#f5f3ff;border:2px solid #c4b5fd;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#6d28d9;margin:0 0 14px 0;font-size:15px;'>📋 RESUMEN DEL SERVICIO</h3>"
+                + "<table style='width:100%;'>"
+                + simpleRow("Servicio", serviceName) + simpleRow("Proveedor", providerName)
+                + simpleRow("Total", "<span style='color:#7c3aed;font-weight:700;font-size:17px;'>" + price + "</span>")
+                + "</table></div>"
+                + "<div style='background:#fef3c7;border-left:3px solid #f59e0b;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
+                + "<p style='color:#92400e;margin:0;font-size:13px;'>Tus comentarios ayudan a otros clientes a encontrar buenos proveedores.</p></div>"
+                + "<div style='text-align:center;margin:24px 0;'>"
+                + "<a href='" + feedbackLink + "' style='background:#7c3aed;color:white;padding:14px 36px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>⭐ Dejar una Reseña</a></div>"
+                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>El equipo de SpotLocalPro</p>"
+                + "</div></div></body></html>";
+    }
+
+    // =========================================================================
+    //  Booking completed templates (provider — payment confirmation)
+    // =========================================================================
+
+    private String buildCompletedProviderHtmlEn(String providerName, Integer bookingId,
+                                                String serviceName, String customerName,
+                                                String price, String dashboardLink) {
+        return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
+                + "<div style='background:#0369a1;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
+                + "<div style='font-size:42px;margin-bottom:8px;'>✅</div>"
+                + "<h1 style='color:white;margin:0;font-size:26px;'>Booking Completed!</h1>"
+                + "<p style='color:#e0f2fe;margin:6px 0 0 0;font-size:15px;'>Payment summary</p>"
+                + "</div>"
+                + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
+                + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hi <strong>" + providerName + "</strong>,</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Booking #" + bookingId + " has been marked as completed.</p>"
+                + "<div style='background:#e0f2fe;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 BOOKING SUMMARY</h3>"
+                + "<table style='width:100%;'>"
+                + simpleRow("Service", serviceName) + simpleRow("Customer", customerName)
+                + simpleRow("Total", "<span style='color:#0369a1;font-weight:700;font-size:17px;'>" + price + "</span>")
+                + "</table></div>"
+                + "<div style='text-align:center;margin:20px 0;'>"
+                + "<a href='" + dashboardLink + "' style='background:#0369a1;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600;display:inline-block;'>View Dashboard</a></div>"
+                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>The SpotLocalPro Team</p>"
+                + "</div></div></body></html>";
+    }
+
+    private String buildCompletedProviderHtmlEs(String providerName, Integer bookingId,
+                                                String serviceName, String customerName,
+                                                String price, String dashboardLink) {
+        return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
+                + "<div style='background:#0369a1;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
+                + "<div style='font-size:42px;margin-bottom:8px;'>✅</div>"
+                + "<h1 style='color:white;margin:0;font-size:26px;'>¡Reserva Completada!</h1>"
+                + "<p style='color:#e0f2fe;margin:6px 0 0 0;font-size:15px;'>Resumen de pago</p>"
+                + "</div>"
+                + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
+                + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hola <strong>" + providerName + "</strong>,</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>La reserva #" + bookingId + " ha sido marcada como completada.</p>"
+                + "<div style='background:#e0f2fe;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:20px 0;'>"
+                + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 RESUMEN DE RESERVA</h3>"
+                + "<table style='width:100%;'>"
+                + simpleRow("Servicio", serviceName) + simpleRow("Cliente", customerName)
+                + simpleRow("Total", "<span style='color:#0369a1;font-weight:700;font-size:17px;'>" + price + "</span>")
+                + "</table></div>"
+                + "<div style='text-align:center;margin:20px 0;'>"
+                + "<a href='" + dashboardLink + "' style='background:#0369a1;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600;display:inline-block;'>Ver Panel</a></div>"
+                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>El equipo de SpotLocalPro</p>"
+                + "</div></div></body></html>";
     }
 }

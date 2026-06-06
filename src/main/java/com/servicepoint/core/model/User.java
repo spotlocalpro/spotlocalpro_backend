@@ -24,6 +24,10 @@ public class User {
 
 	public void setBio(String bio){this.bio=bio;}
 
+	public String getPreferredLanguage() { return preferredLanguage; }
+
+	public void setPreferredLanguage(String preferredLanguage) { this.preferredLanguage = preferredLanguage; }
+
     public String getUsername() {
 		return username;
 	}
@@ -239,6 +243,9 @@ public class User {
     private Integer reviewCount;
 
 	private String bio;
+
+    @Column(name = "preferred_language", length = 5, columnDefinition = "VARCHAR(5) DEFAULT 'en'")
+    private String preferredLanguage = "en";
 
     // REMOVED: private Double distanceMiles;
 

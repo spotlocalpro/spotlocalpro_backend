@@ -108,7 +108,8 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         }
 
         // Generate and send OTP
-        otpService.generateAndSendOtp(user.getEmail(), "login");
+        String lang = user.getPreferredLanguage() != null ? user.getPreferredLanguage() : "en";
+        otpService.generateAndSendOtp(user.getEmail(), "login", lang);
 
         return new SendOtpResponse(true, "OTP sent to your registered email", 600L);
     }
@@ -340,7 +341,16 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         userDTO.setCreatedAt(user.getCreatedAt().toString());
         userDTO.setUpdatedAt(user.getUpdatedAt().toString());
         userDTO.setBio(user.getBio());
+        userDTO.setPreferredLanguage(user.getPreferredLanguage() != null ? user.getPreferredLanguage() : "en");
         return userDTO;
+    }
+
+    @Override
+    public void updateLanguage(Integer userId, String lang) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setPreferredLanguage(lang);
+        userRepository.save(user);
     }
 
     @Override

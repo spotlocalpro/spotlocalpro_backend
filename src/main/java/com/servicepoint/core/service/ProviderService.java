@@ -223,6 +223,7 @@ public class ProviderService {
                 provider.getRating(),
                 provider.getReviewCount(),
                 distanceMiles,
+                provider.getPreferredLanguage() != null ? provider.getPreferredLanguage() : "en",
                 provider.getLastLogin() != null ? provider.getLastLogin().toString() : null,
                 provider.getCreatedAt().toString(),
                 provider.getUpdatedAt().toString()

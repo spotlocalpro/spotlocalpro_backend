@@ -29,6 +29,7 @@ public interface UserService {
     User saveUser(User user);
     void deleteUser(Integer userId);
     void changePassword(String username, String currentPassword, String newPassword);
+    void updateLanguage(Integer userId, String lang);
 
 
 

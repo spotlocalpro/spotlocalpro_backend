@@ -28,10 +28,11 @@ public class OtpService {
     private static final int OTP_LENGTH = 6;
     private static final int MAX_ATTEMPTS = 5;
 
-    /**
-     * Generate and send OTP to user's email
-     */
     public void generateAndSendOtp(String email, String purpose) throws MessagingException {
+        generateAndSendOtp(email, purpose, "en");
+    }
+
+    public void generateAndSendOtp(String email, String purpose, String lang) throws MessagingException {
         String otpCode = generateOtpCode();
 
         OtpCode otp = new OtpCode();
@@ -41,7 +42,7 @@ public class OtpService {
         otp.setIsUsed(false);
 
         // Send email first — if it throws, nothing is saved and the rate limit is not consumed
-        emailService.sendOtpEmail(email, otpCode, purpose);
+        emailService.sendOtpEmail(email, otpCode, purpose, lang);
 
         // Remove stale OTPs (expired or already used) for this email+purpose
         otpRepository.deleteStaleByEmailAndPurpose(email, purpose);

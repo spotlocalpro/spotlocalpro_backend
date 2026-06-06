@@ -23,6 +23,7 @@ public class UserResponse {
     private Double rating;
     private Integer reviewCount;
     private Double distanceMiles;
+    private String preferredLanguage;
     private String lastLogin;
     private String createdAt;
     private String updatedAt;

@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -132,5 +133,21 @@ public class UserController {
             return ResponseEntity.badRequest()
                     .body(new ErrorResponse(e.getMessage()));
         }
+    }
+
+    @PatchMapping("/{userId}/language")
+    public ResponseEntity<?> updateLanguage(
+            @PathVariable Integer userId,
+            @RequestBody Map<String, String> body
+    ) {
+        String lang = body.getOrDefault("preferredLanguage", body.getOrDefault("language", "en"));
+        if (!lang.equals("en") && !lang.equals("es")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Unsupported language. Use 'en' or 'es'."));
+        }
+        userService.updateLanguage(userId, lang);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("language", lang);
+        return ResponseEntity.ok(response);
     }
 }

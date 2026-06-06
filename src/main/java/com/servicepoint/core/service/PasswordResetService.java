@@ -71,7 +71,8 @@ public class PasswordResetService {
 
         // Send email
         try {
-            emailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), resetLink);
+            String lang = user.getPreferredLanguage() != null ? user.getPreferredLanguage() : "en";
+            emailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), resetLink, lang);
             System.out.println("DEBUG >> Password reset email sent to: " + email);
         } catch (MessagingException e) {
             System.out.println("DEBUG >> Failed to send password reset email: " + e.getMessage());
