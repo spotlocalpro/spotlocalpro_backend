@@ -37,7 +37,7 @@ public class ServiceCatalog {
     @Column(nullable = false)
     private String pricingType; // hourly, per_work
 
-    @Column(nullable = false)
+    @Column
     private Double price;
 
     private String subCategory;

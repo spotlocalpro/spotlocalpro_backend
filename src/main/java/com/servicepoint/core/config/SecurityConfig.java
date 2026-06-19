@@ -120,6 +120,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/feedback/**").hasAnyAuthority(
                                 "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"
                         )
+                        .requestMatchers("/api/messages/**").hasAnyAuthority(
+                                "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"
+                        )
+                        .requestMatchers(HttpMethod.GET, "/api/provider-meta/**").permitAll()
+                        .requestMatchers("/api/provider-meta/**").hasAnyAuthority(
+                                "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"
+                        )
                         .requestMatchers("/api/users/**").hasAnyAuthority("ROLE_CUSTOMER", "ROLE_PROVIDER", "ROLE_ADMIN")
                         .requestMatchers(HttpMethod.GET,"/api/providers/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/providers/nearby-service").permitAll()

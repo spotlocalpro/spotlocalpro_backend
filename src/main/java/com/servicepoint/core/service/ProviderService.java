@@ -2,14 +2,17 @@ package com.servicepoint.core.service;
 
 import com.servicepoint.core.dto.*;
 import com.servicepoint.core.exception.ResourceNotFoundException;
+import com.servicepoint.core.model.ProviderMeta;
 import com.servicepoint.core.model.ServiceCatalog;
 import com.servicepoint.core.model.User;
+import com.servicepoint.core.repository.ProviderMetaRepository;
 import com.servicepoint.core.repository.ServiceCatalogRepository;
 import com.servicepoint.core.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,6 +26,9 @@ public class ProviderService {
 
     @Autowired
     private ServiceCatalogRepository serviceRepository;
+
+    @Autowired
+    private ProviderMetaRepository providerMetaRepository;
 
     // ✅ Haversine formula — calculates distance in miles between two lat/lng points
     private double haversineDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -209,25 +215,30 @@ public class ProviderService {
                 ))
                 .collect(Collectors.toList());
 
-        UserResponse userDTO = new UserResponse(
-                provider.getUserId(),
-                provider.getUsername(),
-                provider.getEmail(),
-                provider.getRole(),
-                provider.getBio(),
-                provider.getProfilePicture(),
-                provider.getLocation(),
-                provider.getLatitude(),
-                provider.getLongitude(),
-                provider.getPhoneNumber(),
-                provider.getRating(),
-                provider.getReviewCount(),
-                distanceMiles,
-                provider.getPreferredLanguage() != null ? provider.getPreferredLanguage() : "en",
-                provider.getLastLogin() != null ? provider.getLastLogin().toString() : null,
-                provider.getCreatedAt().toString(),
-                provider.getUpdatedAt().toString()
-        );
+        UserResponse userDTO = new UserResponse();
+        userDTO.setUserId(provider.getUserId());
+        userDTO.setUsername(provider.getUsername());
+        userDTO.setEmail(provider.getEmail());
+        userDTO.setRole(provider.getRole());
+        userDTO.setBio(provider.getBio());
+        userDTO.setProfilePicture(provider.getProfilePicture());
+        userDTO.setLocation(provider.getLocation());
+        userDTO.setLatitude(provider.getLatitude());
+        userDTO.setLongitude(provider.getLongitude());
+        userDTO.setPhoneNumber(provider.getPhoneNumber());
+        userDTO.setRating(provider.getRating());
+        userDTO.setReviewCount(provider.getReviewCount());
+        userDTO.setDistanceMiles(distanceMiles);
+        userDTO.setPreferredLanguage(provider.getPreferredLanguage() != null ? provider.getPreferredLanguage() : "en");
+        userDTO.setLastLogin(provider.getLastLogin() != null ? provider.getLastLogin().toString() : null);
+        userDTO.setCreatedAt(provider.getCreatedAt().toString());
+        userDTO.setUpdatedAt(provider.getUpdatedAt().toString());
+
+        Optional<ProviderMeta> meta = providerMetaRepository.findByProviderId(provider.getUserId());
+        meta.ifPresent(m -> {
+            userDTO.setYearsOfExperience(m.getYearsOfExperience());
+            userDTO.setOffersQuote(m.getOffersQuote());
+        });
 
         return new ProviderWithUser(provider.getUserId(), userDTO, serviceInfoList);
     }
