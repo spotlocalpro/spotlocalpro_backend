@@ -113,6 +113,9 @@ public class SecurityConfig {
                         // Services - public
                         .requestMatchers("/api/services/**").permitAll()
 
+                        // Contact form - customers only
+                        .requestMatchers(HttpMethod.POST, "/api/messages/contact").hasAnyAuthority("ROLE_CUSTOMER", "ROLE_USER")
+
                         // Authenticated user endpoints
                         .requestMatchers("/api/bookings/**").hasAnyAuthority(
                                 "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"
@@ -122,7 +125,7 @@ public class SecurityConfig {
                         )
                         .requestMatchers("/api/messages/**").hasAnyAuthority(
                                 "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"
-                        )
+                        ) 
                         .requestMatchers(HttpMethod.GET, "/api/provider-meta/**").permitAll()
                         .requestMatchers("/api/provider-meta/**").hasAnyAuthority(
                                 "ROLE_USER", "ROLE_ADMIN", "ROLE_PROVIDER", "ROLE_CUSTOMER"

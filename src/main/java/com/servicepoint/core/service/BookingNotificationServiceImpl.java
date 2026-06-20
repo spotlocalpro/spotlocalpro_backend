@@ -9,7 +9,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -56,8 +63,23 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
             String pricingType = booking.getService() != null ? booking.getService().getPricingType() : "";
             String priceText   = formatPrice(booking.getTotalPrice(), pricingType);
             String dateTimeText = formatDateTime(booking);
-            String notes       = (booking.getNotes() == null || booking.getNotes().isBlank())
-                    ? (es ? "Ninguna" : "None") : escape(booking.getNotes());
+
+            // Extract photos from notes before escaping
+            String rawNotes = booking.getNotes() == null ? "" : booking.getNotes();
+            String[] photoInfo = extractPhotoInfo(rawNotes);
+            String cleanRawNotes = photoInfo[0];
+
+            // Load photo file bytes for email attachments
+            List<byte[]> photoContents = new ArrayList<>();
+            List<String> photoNames = new ArrayList<>();
+            if (photoInfo.length > 1) {
+                String[] filenames = java.util.Arrays.copyOfRange(photoInfo, 1, photoInfo.length);
+                loadPhotoAttachments(filenames, photoContents, photoNames);
+            }
+
+            String notes = cleanRawNotes.isBlank()
+                    ? (es ? "Ninguna" : "None")
+                    : escape(cleanRawNotes).replace("\n", "<br>");
             String customerDisplay = escape(firstNameOrUsername(customer));
             String distanceText    = formatDistance(provider, customer);
 
@@ -75,13 +97,22 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
                     ? "Nueva Solicitud de Reserva — " + serviceName
                     : "New Booking Request — " + serviceName;
 
+            // photosHtml will just show "X photos attached" note in the email body
+            String photosHtml = photoContents.isEmpty() ? "" :
+                    "<div style='margin-top:10px;padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;'>"
+                    + "<p style='margin:0;font-size:13px;color:#15803d;font-weight:600;'>📎 "
+                    + photoContents.size() + " photo" + (photoContents.size() > 1 ? "s" : "")
+                    + " attached — see attachments below</p></div>";
+
             String body = es
                     ? buildNewRequestHtmlEs(escape(firstNameOrUsername(provider)), customerDisplay, distanceText,
-                            escape(serviceName), escape(category), dateTimeText, priceText, notes, approveUrl, declineUrl)
+                            escape(serviceName), escape(category), dateTimeText, priceText, notes, photosHtml, approveUrl, declineUrl)
                     : buildNewRequestHtmlEn(escape(firstNameOrUsername(provider)), customerDisplay, distanceText,
-                            escape(serviceName), escape(category), dateTimeText, priceText, notes, approveUrl, declineUrl);
+                            escape(serviceName), escape(category), dateTimeText, priceText, notes, photosHtml, approveUrl, declineUrl);
 
-            emailService.sendEmail(provider.getEmail(), subject, body);
+            emailService.sendEmail(provider.getEmail(), subject, body,
+                    photoContents.isEmpty() ? null : photoContents,
+                    photoNames.isEmpty() ? null : photoNames);
             log.info("Sent new booking request email for booking {} to provider {}",
                     booking.getBookingId(), provider.getEmail());
         } catch (MessagingException e) {
@@ -313,9 +344,13 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
     }
 
     private static String formatPrice(Double total, String pricingType) {
-        if (total == null) return "Price TBD";
+        if ("quote".equalsIgnoreCase(pricingType)) return "Free Estimate";
+        if (total == null || total == 0.0) return "Price TBD";
         if ("hourly".equalsIgnoreCase(pricingType)) {
             return String.format(Locale.US, "$%.2f/hr", total);
+        }
+        if ("starting_from".equalsIgnoreCase(pricingType)) {
+            return String.format(Locale.US, "from $%.2f", total);
         }
         return String.format(Locale.US, "$%.2f flat", total);
     }
@@ -356,14 +391,73 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
                 + "<td style='padding:8px 0;color:#1f2937;font-size:14px;font-weight:600;text-align:right;'>" + value + "</td></tr>";
     }
 
+    private static final Path PHOTO_UPLOAD_DIR =
+            Paths.get("uploads/estimate-photos").toAbsolutePath().normalize();
+
+    // Strips "##PHOTOS##url1,url2##END_PHOTOS##" from notes, returns [cleanNotes, photoFilenames...]
+    private static String[] extractPhotoInfo(String rawNotes) {
+        if (rawNotes == null) return new String[]{""};
+        String marker = "##PHOTOS##";
+        String endMarker = "##END_PHOTOS##";
+        int start = rawNotes.indexOf(marker);
+        if (start == -1) return new String[]{rawNotes};
+        int urlsStart = start + marker.length();
+        int end = rawNotes.indexOf(endMarker, urlsStart);
+        if (end == -1) return new String[]{rawNotes};
+        String cleanNotes = rawNotes.substring(0, start).trim();
+        String urlsPart = rawNotes.substring(urlsStart, end).trim();
+        if (urlsPart.isEmpty()) return new String[]{cleanNotes};
+        String[] urls = urlsPart.split(",");
+        String[] result = new String[1 + urls.length];
+        result[0] = cleanNotes;
+        for (int i = 0; i < urls.length; i++) {
+            String url = urls[i].trim();
+            int slash = url.lastIndexOf('/');
+            result[i + 1] = slash >= 0 ? url.substring(slash + 1) : url;
+        }
+        return result;
+    }
+
+    // Loads photo bytes from disk given filenames extracted from notes
+    private static void loadPhotoAttachments(String[] photoFilenames,
+                                             List<byte[]> contents, List<String> names) {
+        for (String filename : photoFilenames) {
+            if (filename == null || filename.isBlank()) continue;
+            try {
+                Path file = PHOTO_UPLOAD_DIR.resolve(filename).normalize();
+                if (Files.exists(file)) {
+                    contents.add(Files.readAllBytes(file));
+                    names.add(filename);
+                }
+            } catch (IOException e) {
+                log.warn("Could not read estimate photo {}: {}", filename, e.getMessage());
+            }
+        }
+    }
+
+    // Extracts photos, returns [cleanNotes, photosHtml] — kept for email template use
+    private static String[] extractPhotos(String notes) {
+        String[] info = extractPhotoInfo(notes);
+        String cleanNotes = info[0];
+        String photosHtml = "";
+        if (info.length > 1) {
+            photosHtml = "<div style='margin-top:10px;padding:10px;background:#f0fdf4;border-radius:6px;'>"
+                    + "<p style='margin:0;font-size:13px;color:#15803d;font-weight:600;'>📎 "
+                    + (info.length - 1) + " photo" + (info.length > 2 ? "s" : "") + " attached — see attachments in this email</p>"
+                    + "</div>";
+        }
+        return new String[]{cleanNotes, photosHtml};
+    }
+
     // =========================================================================
     //  New booking request templates
     // =========================================================================
 
     private String buildNewRequestHtmlEn(String providerName, String customerName, String distance,
                                          String serviceName, String category, String dateTime,
-                                         String price, String notes,
+                                         String price, String notes, String photosHtml,
                                          String approveUrl, String declineUrl) {
+        String displayNotes = (notes == null || notes.isBlank()) ? "None" : notes;
         return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
                 + "<div style='background:#fb923c;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
                 + "<div style='font-size:42px;margin-bottom:8px;'>🔔</div>"
@@ -372,37 +466,38 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
                 + "</div>"
                 + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
                 + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hi <strong>" + providerName + "</strong>,</p>"
-                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>You have a new booking request on SpotLocalPro!</p>"
-                + "<div style='background:#fffbeb;border:2px solid #fbbf24;border-radius:10px;padding:20px;margin:20px 0;'>"
-                + "<h3 style='color:#92400e;margin:0 0 14px 0;font-size:15px;'>👤 CUSTOMER DETAILS</h3>"
-                + "<table style='width:100%;'>" + simpleRow("Customer", customerName) + simpleRow("Distance", distance) + "</table></div>"
-                + "<div style='background:#f0f9ff;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:20px 0;'>"
-                + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 BOOKING DETAILS</h3>"
-                + "<table style='width:100%;'>"
-                + simpleRow("Service", serviceName + (category.isEmpty() ? "" : " (" + category + ")"))
-                + simpleRow("Requested", dateTime) + simpleRow("Price", price) + simpleRow("Notes", notes)
-                + "</table></div>"
-                + "<div style='background:#fef2f2;border-left:3px solid #f87171;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
-                + "<p style='color:#991b1b;margin:0;font-size:13px;'>🔒 <strong>Privacy:</strong> Approve to view customer's phone and location.</p></div>"
-                + "<div style='text-align:center;margin:28px 0;padding:20px;background:#f9fafb;border-radius:10px;'>"
-                + "<p style='color:#374151;font-size:15px;font-weight:600;margin:0 0 16px 0;'>Choose your action:</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>You have a new booking request on SpotLocalPro. Please approve or decline below.</p>"
+                + "<div style='text-align:center;margin:0 0 24px 0;padding:20px;background:#f0fdf4;border:2px solid #86efac;border-radius:10px;'>"
+                + "<p style='color:#15803d;font-size:15px;font-weight:700;margin:0 0 16px 0;'>Action Required — Choose your response:</p>"
                 + "<table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom:10px;'><tr><td align='center'>"
                 + "<a href='" + approveUrl + "' style='background:#16a34a;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>✅ APPROVE</a>"
                 + "</td></tr></table>"
                 + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center'>"
                 + "<a href='" + declineUrl + "' style='background:#dc2626;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>❌ DECLINE</a>"
                 + "</td></tr></table>"
-                + "<p style='color:#9ca3af;font-size:12px;margin:16px 0 0 0;'>Links expire in 48 hours</p>"
+                + "<p style='color:#6b7280;font-size:12px;margin:14px 0 0 0;'>Links expire in 48 hours</p>"
                 + "</div>"
-                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<div style='background:#fffbeb;border:2px solid #fbbf24;border-radius:10px;padding:20px;margin:0 0 20px 0;'>"
+                + "<h3 style='color:#92400e;margin:0 0 14px 0;font-size:15px;'>👤 CUSTOMER DETAILS</h3>"
+                + "<table style='width:100%;'>" + simpleRow("Customer", customerName) + simpleRow("Distance", distance) + "</table></div>"
+                + "<div style='background:#f0f9ff;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:0 0 20px 0;'>"
+                + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 BOOKING DETAILS</h3>"
+                + "<table style='width:100%;'>"
+                + simpleRow("Service", serviceName + (category.isEmpty() ? "" : " (" + category + ")"))
+                + simpleRow("Requested", dateTime) + simpleRow("Price", price) + simpleRow("Notes", displayNotes)
+                + "</table>" + photosHtml + "</div>"
+                + "<div style='background:#fef2f2;border-left:3px solid #f87171;padding:14px 18px;border-radius:6px;margin:0 0 20px 0;'>"
+                + "<p style='color:#991b1b;margin:0;font-size:13px;'>🔒 <strong>Privacy:</strong> Approve to view customer's phone and location.</p></div>"
+                + "<div style='text-align:center;padding-top:20px;border-top:2px solid #e5e7eb;'>"
                 + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>The SpotLocalPro Team</p>"
                 + "</div></div></body></html>";
     }
 
     private String buildNewRequestHtmlEs(String providerName, String customerName, String distance,
                                          String serviceName, String category, String dateTime,
-                                         String price, String notes,
+                                         String price, String notes, String photosHtml,
                                          String approveUrl, String declineUrl) {
+        String displayNotes = (notes == null || notes.isBlank()) ? "Ninguna" : notes;
         return "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f3f4f6;padding:20px;'>"
                 + "<div style='background:#fb923c;padding:35px 20px;text-align:center;border-radius:12px 12px 0 0;'>"
                 + "<div style='font-size:42px;margin-bottom:8px;'>🔔</div>"
@@ -411,29 +506,29 @@ public class BookingNotificationServiceImpl implements BookingNotificationServic
                 + "</div>"
                 + "<div style='background:white;padding:28px;border-radius:0 0 12px 12px;'>"
                 + "<p style='font-size:17px;color:#1f2937;margin:0 0 6px 0;'>Hola <strong>" + providerName + "</strong>,</p>"
-                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>¡Tienes una nueva solicitud de reserva en SpotLocalPro!</p>"
-                + "<div style='background:#fffbeb;border:2px solid #fbbf24;border-radius:10px;padding:20px;margin:20px 0;'>"
-                + "<h3 style='color:#92400e;margin:0 0 14px 0;font-size:15px;'>👤 DATOS DEL CLIENTE</h3>"
-                + "<table style='width:100%;'>" + simpleRow("Cliente", customerName) + simpleRow("Distancia", distance) + "</table></div>"
-                + "<div style='background:#f0f9ff;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:20px 0;'>"
-                + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 DETALLES DE LA RESERVA</h3>"
-                + "<table style='width:100%;'>"
-                + simpleRow("Servicio", serviceName + (category.isEmpty() ? "" : " (" + category + ")"))
-                + simpleRow("Solicitado", dateTime) + simpleRow("Precio", price) + simpleRow("Notas", notes)
-                + "</table></div>"
-                + "<div style='background:#fef2f2;border-left:3px solid #f87171;padding:14px 18px;border-radius:6px;margin:20px 0;'>"
-                + "<p style='color:#991b1b;margin:0;font-size:13px;'>🔒 <strong>Privacidad:</strong> Aprueba para ver el teléfono y ubicación del cliente.</p></div>"
-                + "<div style='text-align:center;margin:28px 0;padding:20px;background:#f9fafb;border-radius:10px;'>"
-                + "<p style='color:#374151;font-size:15px;font-weight:600;margin:0 0 16px 0;'>Elige tu acción:</p>"
+                + "<p style='color:#4b5563;font-size:15px;margin:0 0 20px 0;'>Tienes una nueva solicitud de reserva en SpotLocalPro. Por favor aprueba o rechaza a continuación.</p>"
+                + "<div style='text-align:center;margin:0 0 24px 0;padding:20px;background:#f0fdf4;border:2px solid #86efac;border-radius:10px;'>"
+                + "<p style='color:#15803d;font-size:15px;font-weight:700;margin:0 0 16px 0;'>Acción Requerida — Elige tu respuesta:</p>"
                 + "<table width='100%' cellpadding='0' cellspacing='0' style='margin-bottom:10px;'><tr><td align='center'>"
                 + "<a href='" + approveUrl + "' style='background:#16a34a;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>✅ APROBAR</a>"
                 + "</td></tr></table>"
                 + "<table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center'>"
                 + "<a href='" + declineUrl + "' style='background:#dc2626;color:white;padding:14px 45px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;'>❌ RECHAZAR</a>"
                 + "</td></tr></table>"
-                + "<p style='color:#9ca3af;font-size:12px;margin:16px 0 0 0;'>Los enlaces expiran en 48 horas</p>"
+                + "<p style='color:#6b7280;font-size:12px;margin:14px 0 0 0;'>Los enlaces expiran en 48 horas</p>"
                 + "</div>"
-                + "<div style='text-align:center;margin-top:32px;padding-top:20px;border-top:2px solid #e5e7eb;'>"
+                + "<div style='background:#fffbeb;border:2px solid #fbbf24;border-radius:10px;padding:20px;margin:0 0 20px 0;'>"
+                + "<h3 style='color:#92400e;margin:0 0 14px 0;font-size:15px;'>👤 DATOS DEL CLIENTE</h3>"
+                + "<table style='width:100%;'>" + simpleRow("Cliente", customerName) + simpleRow("Distancia", distance) + "</table></div>"
+                + "<div style='background:#f0f9ff;border:2px solid #7dd3fc;border-radius:10px;padding:20px;margin:0 0 20px 0;'>"
+                + "<h3 style='color:#075985;margin:0 0 14px 0;font-size:15px;'>📋 DETALLES DE LA RESERVA</h3>"
+                + "<table style='width:100%;'>"
+                + simpleRow("Servicio", serviceName + (category.isEmpty() ? "" : " (" + category + ")"))
+                + simpleRow("Solicitado", dateTime) + simpleRow("Precio", price) + simpleRow("Notas", displayNotes)
+                + "</table>" + photosHtml + "</div>"
+                + "<div style='background:#fef2f2;border-left:3px solid #f87171;padding:14px 18px;border-radius:6px;margin:0 0 20px 0;'>"
+                + "<p style='color:#991b1b;margin:0;font-size:13px;'>🔒 <strong>Privacidad:</strong> Aprueba para ver el teléfono y ubicación del cliente.</p></div>"
+                + "<div style='text-align:center;padding-top:20px;border-top:2px solid #e5e7eb;'>"
                 + "<p style='color:#6b7280;font-size:15px;font-weight:600;margin:0;'>El equipo de SpotLocalPro</p>"
                 + "</div></div></body></html>";
     }

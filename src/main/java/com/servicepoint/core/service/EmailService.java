@@ -4,9 +4,11 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import java.util.List;
 
 @Service
 public class EmailService {
@@ -28,17 +30,28 @@ public class EmailService {
     //  Core send — tries Brevo first, falls back to SMTP
     // ─────────────────────────────────────────────────────────────────────────
     public void sendEmail(String to, String subject, String body) throws MessagingException {
-        boolean brevoSuccess = brevoEmailService.sendEmail(to, subject, body);
+        sendEmail(to, subject, body, null, null);
+    }
+
+    public void sendEmail(String to, String subject, String body,
+                          List<byte[]> attachmentContents, List<String> attachmentNames) throws MessagingException {
+        boolean brevoSuccess = brevoEmailService.sendEmail(to, subject, body, attachmentContents, attachmentNames);
         if (brevoSuccess) return;
 
         System.out.println("⚠️ Brevo failed, trying SMTP fallback...");
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(body, true);
+            if (attachmentContents != null) {
+                for (int i = 0; i < attachmentContents.size(); i++) {
+                    String name = i < attachmentNames.size() ? attachmentNames.get(i) : "photo-" + (i + 1) + ".jpg";
+                    helper.addAttachment(name, new ByteArrayResource(attachmentContents.get(i)));
+                }
+            }
             mailSender.send(message);
             System.out.println("✅ SMTP fallback succeeded");
         } catch (Exception e) {
