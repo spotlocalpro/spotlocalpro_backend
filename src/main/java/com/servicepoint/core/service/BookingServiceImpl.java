@@ -7,6 +7,7 @@ import com.servicepoint.core.model.Booking;
 import com.servicepoint.core.model.Feedback;
 import com.servicepoint.core.model.ServiceCatalog;
 import com.servicepoint.core.model.User;
+import com.servicepoint.core.exception.BookingConflictException;
 import com.servicepoint.core.repository.BookingRepository;
 import com.servicepoint.core.repository.FeedbackRepository;
 import com.servicepoint.core.repository.ServiceCatalogRepository;
@@ -161,14 +162,28 @@ public class BookingServiceImpl implements BookingService {
         ServiceCatalog service = serviceCatalogRepository.findById(request.getServiceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Service Does not exist"));
 
+        // Prevent double booking: reject if provider already has a confirmed booking at this exact time
+        try {
+            if (request.getServiceDateTime() != null &&
+                    bookingRepository.existsConflict(
+                            provider.getUserId(), request.getServiceDateTime(), "confirmed")) {
+                throw new BookingConflictException(
+                        "This time slot is already booked. Please choose a different date and time.");
+            }
+        } catch (BookingConflictException e) {
+            throw e;
+        } catch (Exception e) {
+            // Log and continue — conflict check failure must never block a legitimate booking
+        }
+
         var booking = new Booking();
         booking.setCustomer(customer);
         booking.setProvider(provider);
         booking.setService(service);
-        booking.setBookingDate(request.getBookingDate());
-        booking.setPriceAtBooking(request.getPriceAtBooking());
-        booking.setTotalPrice(request.getTotalPrice());
-        booking.setPricingTypeAtBooking(request.getPricingTypeAtBooking());
+        booking.setBookingDate(request.getBookingDate() != null ? request.getBookingDate() : new java.sql.Timestamp(System.currentTimeMillis()));
+        booking.setPriceAtBooking(request.getPriceAtBooking() != null ? request.getPriceAtBooking() : 0.0);
+        booking.setTotalPrice(request.getTotalPrice() != null ? request.getTotalPrice() : 0.0);
+        booking.setPricingTypeAtBooking(request.getPricingTypeAtBooking() != null ? request.getPricingTypeAtBooking() : "per_work");
         booking.setStatus(request.getStatus());
         booking.setServiceDateTime(request.getServiceDateTime());
         booking.setNotes(request.getNotes());

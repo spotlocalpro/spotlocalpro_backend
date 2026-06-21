@@ -194,7 +194,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
 
         System.out.println("DEBUG >> Login successful for user: " + user.getUsername());
 
-        return new LoginResponse(accessToken, refreshToken, 900000L, 604800000L,
+        return new LoginResponse(accessToken, refreshToken, 3600000L, 604800000L,
                 new UserInfo(user.getUserId(), user.getUsername(), user.getEmail(),
                         user.getRole(), user.getPhoneNumber(), user.getProfilePicture(),
                         user.getPreferredLanguage() != null ? user.getPreferredLanguage() : "en"));

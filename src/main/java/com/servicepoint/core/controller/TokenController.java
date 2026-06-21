@@ -82,7 +82,7 @@ public class TokenController {
             String newAccessToken = jwtUtil.generateToken(userDetails);
             System.out.println("✅ New access token generated");
 
-            long expirationTimeMs = 15 * 60 * 1000;
+            long expirationTimeMs = 60 * 60 * 1000;
             Date expirationDate = new Date(System.currentTimeMillis() + expirationTimeMs);
 
             RenewAccessTokenResponse response = new RenewAccessTokenResponse(

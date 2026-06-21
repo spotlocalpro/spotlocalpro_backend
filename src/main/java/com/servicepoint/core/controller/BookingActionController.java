@@ -100,6 +100,25 @@ public class BookingActionController {
             bookingRepository.save(booking);
             notificationService.sendApprovalFollowUpToProvider(booking);
             notificationService.sendApprovalNotificationToCustomer(booking);
+
+            // Auto-decline all other pending bookings for same provider at the same time slot
+            if (booking.getServiceDateTime() != null) {
+                java.util.List<Booking> competing = bookingRepository
+                        .findConflicting(
+                                booking.getProvider().getUserId(),
+                                booking.getServiceDateTime(),
+                                STATUS_PENDING);
+                for (Booking conflict : competing) {
+                    if (!conflict.getBookingId().equals(bookingId)) {
+                        conflict.setStatus(STATUS_DECLINED);
+                        bookingRepository.save(conflict);
+                        notificationService.sendDeclineNotificationToCustomer(conflict);
+                        log.info("Auto-declined competing booking {} for provider {} at same time slot",
+                                conflict.getBookingId(), booking.getProvider().getUserId());
+                    }
+                }
+            }
+
             log.info("Booking {} approved by provider via email link", bookingId);
             return ResponseEntity.ok()
                     .contentType(MediaType.TEXT_HTML)
